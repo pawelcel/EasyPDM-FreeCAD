@@ -7,8 +7,9 @@
 # next to this file): each menu click loads the macro afresh into its own namespace and calls its
 # entry point, exactly as Macro > Execute runs it, so the add-on and the macros can never drift
 # apart and nothing of the live-tested upload/download logic is copied here. They share the
-# macros' settings (User parameter:BaseApp/EasyPDM: ApiBaseUrl, SessionToken, SavedDisplayName),
-# so a login here is the macros' login too.
+# settings in User parameter:BaseApp/EasyPDM (ApiBaseUrl, SavedDisplayName); the login token
+# itself is kept in the system's secret storage (secure_store.py), and the macros loaded here
+# are handed the add-on's token functions in place of their own plain-parameter ones.
 #
 # Log in approves the sign-in in the browser (POST /api/auth/device/start, DeviceLoginEndpoints
 # on the server): FreeCAD never sees the password, and gets its own macro token, listed and
@@ -23,6 +24,8 @@ import webbrowser
 
 import FreeCAD as App
 import FreeCADGui as Gui
+
+from . import secure_store
 
 try:
     from PySide import QtCore, QtGui
@@ -68,7 +71,7 @@ def _server_url():
 
 
 def _token():
-    return _params().GetString("SessionToken", "") or None
+    return secure_store.get(_base_url())
 
 
 def _signed_in_as():
@@ -99,6 +102,12 @@ def load_macro(file_name):
         source = f.read()
     namespace = {"__name__": "easypdm_" + os.path.splitext(file_name)[0].lower(), "__file__": path}
     exec(compile(source, path, "exec"), namespace)
+    # The macros keep the token in FreeCAD's plain parameters; inside the add-on it lives in the
+    # system's secret storage instead. They read and write it only through these two functions,
+    # which they look up as globals at call time, so replacing them here covers every use.
+    base_url = namespace["get_base_url"]
+    namespace["get_session_token"] = lambda: secure_store.get(base_url())
+    namespace["set_session_token"] = lambda token: secure_store.set(base_url(), token)
     return namespace
 
 
@@ -191,7 +200,7 @@ class DeviceLoginDialog(QtWidgets.QDialog):
         if status == 200 and body and body.get("sessionToken"):
             p = _params()
             p.SetString("ApiBaseUrl", server + "/api")
-            p.SetString("SessionToken", body["sessionToken"])
+            secure_store.set(server + "/api", body["sessionToken"])
             p.SetString("SavedDisplayName", body.get("displayName") or body.get("username") or "")
             self.accept()
             return
@@ -224,7 +233,7 @@ def log_out():
             _post(_base_url() + "/auth/logout", {}, token)
         except Exception:
             pass  # signed out here anyway; the token can be revoked under Settings > Users
-    _params().SetString("SessionToken", "")
+    secure_store.set(_base_url(), None)
     _params().SetString("SavedDisplayName", "")
     QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", "Logged out of EasyPDM.")
 

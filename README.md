@@ -43,9 +43,15 @@ older revision (Download always fetches the current one).
 ## What it connects to
 
 Only the EasyPDM server whose address you enter when logging in, over HTTP(S). Nothing is sent
-anywhere else, and nothing is contacted until you use a command. The login is a revocable
-EasyPDM token stored in FreeCAD's preferences (`User parameter:BaseApp/EasyPDM`), shared with
-the EasyPDM macros.
+anywhere else, and nothing is contacted until you use a command.
+
+The login is a revocable EasyPDM token (never your password), kept per server in the system's
+secret storage: DPAPI on Windows, the keychain on macOS, the Secret Service (KWallet, GNOME
+Keyring…) through `secret-tool` on Linux. Without one — on Linux when `secret-tool` (package
+`libsecret`) is missing — it stays in FreeCAD's preferences and the Report view says so. A token
+an earlier version left in FreeCAD's preferences is moved into the secret storage on first use.
+The server address and your name are kept in FreeCAD's preferences
+(`User parameter:BaseApp/EasyPDM`).
 
 ## Documentation
 

@@ -6,6 +6,9 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+### Security
+- **The login token is kept in the system's secret storage.** DPAPI on Windows, the keychain on macOS and the Secret Service (KWallet, GNOME Keyring…) through `secret-tool` on Linux, per server, instead of FreeCAD's plain-text preferences. Without one it stays in the preferences, and the Report view says so once. A token left there by an earlier version is moved on first use, so nobody has to log in again. The macros the add-on runs use the same storage.
+
 ### Changed
 - **This repository is now the home of EasyPDM for FreeCAD.** The add-on and the macros it runs moved here from `EasyPDM.FreeCad/` in the EasyPDM repository, with their history, and this repository stopped being a generated copy: issues and changes belong here, and the add-on is released from here. It is laid out as FreeCAD's Addon Manager installs it (package.xml at the top, the code in `freecad/EasyPDM/`), so nothing has to be built.
 - **The macros are no longer offered on their own.** They stay as the add-on's engine, in `freecad/EasyPDM/`, run unchanged by its Upload and Download; install the add-on instead of the macro files.
