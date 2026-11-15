@@ -34,7 +34,8 @@ Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/paw
   ones) and **Log out**.
 - **Document panel** (EasyPDM → Document panel): beside the model tree, the active document's
   item — record name, name, revision, status, who holds the lock — with buttons for the commands
-  below and "Open in browser" (opens the item's project).
+  below and "Open in browser" (opens the item in EasyPDM; with a server older than 0.9, the
+  whole-database view).
 - **Lock for editing / Release lock** on the active document's item, as the lock in the browser.
 - **Refresh drawing sheet**: fills the EasyPDM sheet with the item's current data without
   uploading.

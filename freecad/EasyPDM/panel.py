@@ -109,12 +109,10 @@ class _Panel(QtWidgets.QDockWidget):
             self._show(None, str(e))
 
     def open_in_browser(self):
-        # The web app opens a project from its address; the item is then a click away in the tree.
-        if not self.item:
-            return
-        project = self.item.get("projectId")
-        query = "?view=projects&projectId=%s" % project if project else "?view=database"
-        webbrowser.open(ea._server_url() + "/" + query)
+        # /?item=<id> opens the item itself (EasyPDM servers from 0.9; older ones show the
+        # whole-database view instead).
+        if self.item:
+            webbrowser.open("%s/?item=%s" % (ea._server_url(), self.item["id"]))
 
 
 def toggle():

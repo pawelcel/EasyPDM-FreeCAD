@@ -7,7 +7,7 @@ the macros were released with EasyPDM itself; see the
 ## [Unreleased]
 
 ### Added
-- **Document panel.** EasyPDM → Document panel opens a dock beside the model tree showing the active document's item — record name, name, revision, status and who holds the lock — with buttons for Refresh, Open in browser (the item's project), Lock, Release, Upload and Refresh drawing sheet. It follows the active document and asks the server only while it is open.
+- **Document panel.** EasyPDM → Document panel opens a dock beside the model tree showing the active document's item — record name, name, revision, status and who holds the lock — with buttons for Refresh, Open in browser (the item itself, on EasyPDM servers from 0.9), Lock, Release, Upload and Refresh drawing sheet. It follows the active document and asks the server only while it is open.
 - **Lock for editing and Release lock** for the active document's item, the same lock as in the browser; a refusal from the server (for example on a released item) is shown in words.
 - **Refresh drawing sheet** fills the EasyPDM sheet with the item's current data without uploading the document.
 - **Edit → Preferences → EasyPDM**: server address, download folder, the menu in every workbench, where the login is kept, and Log out.
