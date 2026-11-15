@@ -44,8 +44,8 @@ Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/paw
   workbench, where the login is kept, and Log out.
 - Menu texts in English, Polish and German, following FreeCAD's language.
 
-Upload and Download are the EasyPDM FreeCAD macros, live-tested on FreeCAD 1.1; the add-on runs
-them unchanged.
+Upload and Download are the former EasyPDM FreeCAD macros, live-tested on FreeCAD 1.1, now
+modules of the add-on.
 
 Not supported: other assembly workbenches (A2plus, Assembly3, Assembly4), and downloading an
 older revision (Download always fetches the current one).
@@ -77,7 +77,7 @@ FreeCAD 1.0 or newer. MIT licence.
   FreeCAD as `freecad.EasyPDM.init_gui`. To try a change, link or copy this repository into
   FreeCAD's `Mod` folder as `EasyPDM`.
 - The drawing sheets come from `tools/build_templates.py` (see its docstring); never edit the
-  SVG templates or the shared block in the macros by hand.
+  SVG templates or `freecad/EasyPDM/sheet.py` by hand.
 - A release is a `vX.Y.Z` tag matching `<version>` in `package.xml`; the workflow makes a draft
   GitHub release with the zip. See [CLAUDE.md](CLAUDE.md) for the conventions.
 

@@ -1,10 +1,12 @@
-# EasyPDM — FreeCAD-Makros
+# EasyPDM für FreeCAD — Upload und Download im Detail
 
 [English](README.md) | [Polski](README.pl.md) | **Deutsch**
 
-Zwei unabhängige Makros, eines zum Senden, eines zum Herunterladen/Öffnen:
+Die zwei Befehle des Add-ons, einer zum Senden, einer zum Herunterladen/Öffnen. Bis 0.9 waren es
+die Makros EasyPDMUpload.FCMacro und EasyPDMDownload.FCMacro; wo diese Seite "das Makro" sagt,
+ist der Befehl gemeint:
 
-- **`EasyPDMUpload.FCMacro`** sendet das aktive FreeCAD-Dokument an EasyPDM. Das Makro
+- **Upload** sendet das aktive FreeCAD-Dokument an EasyPDM. Das Makro
   fragt lokal NICHTS ab außer dem Speicherordner — sogar die Wahl "neues Element oder
   Anhängen an ein vorhandenes" fällt im **System-Browser** (weiter unten in dieser Datei
   beschrieben), auf demselben Formular/derselben Leiste wie in der Web-Anwendung — **mit
@@ -12,7 +14,7 @@ Zwei unabhängige Makros, eines zum Senden, eines zum Herunterladen/Öffnen:
   einem vorhandenen PDM-Element, fragt das Makro zuerst lokal, ob es dort als neue
   Revision angehängt werden soll, und umgeht den Browser dabei vollständig (siehe
   „Lokale Abkürzung für ein bereits erkanntes Dokument" unten).
-- **`EasyPDMDownload.FCMacro`** lädt ein Teil/eine Baugruppe aus EasyPDM herunter
+- **Download** lädt ein Teil/eine Baugruppe aus EasyPDM herunter
   (zusammen mit ALLEN seinen/ihren Komponenten, falls es sich um eine Baugruppe handelt)
   und öffnet es/sie sofort in FreeCAD (in einem eigenen Abschnitt am Ende dieser Datei
   beschrieben).
@@ -25,10 +27,8 @@ die Anmeldung bei einem reicht für das andere.
 ## Installation
 
 Das Add-on wie in der [README](../README.md#installing) beschrieben installieren (Addon-Manager
-von FreeCAD oder von Hand in den `Mod`-Ordner). Sein **Upload** und **Download** sind die beiden
-hier beschriebenen Makros, `freecad/EasyPDM/EasyPDMUpload.FCMacro` und `EasyPDMDownload.FCMacro`,
-unverändert ausgeführt. Die Dateien von Hand über Makro → Makros… → Ausführen zu starten
-funktioniert weiterhin, ist aber kein unterstützter Installationsweg für EasyPDM in FreeCAD mehr.
+von FreeCAD oder von Hand in den `Mod`-Ordner). Sein **Upload** und **Download** sind das, was diese Seite
+beschreibt (`freecad/EasyPDM/upload.py` und `download.py`, mit `common.py` und `sheet.py`).
 
 ## Anmeldung
 
@@ -64,7 +64,7 @@ getrennte.
    bevor irgendetwas gesendet wird.
 1a. **Fragt nach dem Zielordner** für lokale Kopien (Speichern unter) aller in dieser
     Sitzung gesendeten Dokumente (siehe Schritt 3 unten) — standardmäßig wird der zuletzt
-    verwendete vorgeschlagen (**eine mit `EasyPDMDownload.FCMacro` geteilte
+    verwendete vorgeschlagen (**eine mit **Download** geteilte
     Einstellung** — stellen Sie in beiden Makros denselben Ordner ein, damit gesendete und
     heruntergeladene Dateien zusammen an einem Ort landen). Wird EINMAL, ganz am Anfang,
     gefragt — dies deckt auch den automatisch erkannten Baugruppenbaum ab (Teile/
@@ -175,7 +175,7 @@ getrennte.
    Baugruppe, die auf dieses Dokument verlinkt (`App::Link`) und NACH ihm in derselben
    Sitzung gespeichert wird (der automatisch erkannte Baugruppenbaum speichert die
    Baugruppe immer zuletzt — siehe unten), ihren Verweis bereits unter dem neuen Namen —
-   genau demjenigen, unter dem `EasyPDMDownload.FCMacro` heruntergeladene Dateien später
+   genau demjenigen, unter dem **Download** heruntergeladene Dateien später
    speichert, sodass die Verweise nach dem Herunterladen sofort stimmen. **Ohne dies würde
    die Baugruppe nach dem Herunterladen nach dem ursprünglichen, vor dem Senden gültigen
    Dateinamen suchen** (in der Praxis bestätigt durch die FreeCAD-Meldung: `Link broken!
@@ -409,13 +409,13 @@ Speicherregistrierung), ist unverändert.
 
 ---
 
-# EasyPDMDownload.FCMacro — Herunterladen und Öffnen
+# Download — Herunterladen und Öffnen
 
 Das zweite Makro: Anstatt zu senden, **lädt** es ein Teil/eine Baugruppe aus EasyPDM
 **herunter** und **öffnet** es/sie sofort in FreeCAD. Anmeldung und API-Adresse sind
-genauso konfiguriert wie in `EasyPDMUpload.FCMacro` (dieselben FreeCAD-Einstellungen) —
+genauso konfiguriert wie in **Upload** (dieselben FreeCAD-Einstellungen) —
 separate Installation/Ausführung (siehe "Installation" oben), aber eine gemeinsame
-Sitzung. Wie in `EasyPDMUpload.FCMacro` fällt die Wahl des Elements im **System-Browser**,
+Sitzung. Wie in **Upload** fällt die Wahl des Elements im **System-Browser**,
 nicht in einem nativen Fenster — das Makro fragt lokal NUR nach dem Zielordner.
 
 ## Was es tut
@@ -459,7 +459,7 @@ nicht in einem nativen Fenster — das Makro fragt lokal NUR nach dem Zielordner
 
 EasyPDM hat keine separate "Elementdatei" für ein Teil/eine Baugruppe — die aktuelle
 CAD-Datei ist ein Anhang (`item_attachments`), und bei JEDEM Senden einer neuen Revision
-über `EasyPDMUpload.FCMacro` BLEIBT die vorherige Kopie erhalten (ein neuer Anhang neben
+über **Upload** BLEIBT die vorherige Kopie erhalten (ein neuer Anhang neben
 dem alten, mit unterschiedlichen Namen: `Nummer (Name).REVISION.Erweiterung`) — die
 Revisionshistorie lässt sich also in der Praxis allein aus der Anhangsliste
 rekonstruieren, ohne eine separate API für "alte Dateiversionen" zu benötigen. Das Makro
@@ -489,7 +489,7 @@ nimmt es einfach den zuletzt hochgeladenen Anhang als beste Annäherung.
   "Make link relative"/zum Ändern des Link-Pfads).
 - Eine gemeinsam genutzte Komponente (an mehreren Stellen im Baum verwendet) wird nur
   einmal heruntergeladen (erkannt an der Element-ID) — genauso wie beim Senden in
-  `EasyPDMUpload.FCMacro`.
+  **Upload**.
 - Die Erkennung "das ist die Datei dieses Elements" beruht auf derselben Namenskonvention
   wie beim Senden (`Nummer (Name).REVISION.Erweiterung`) — ein Element, dessen EINZIGER
   Anhang einen völlig anderen Namen hat (nie ein CAD-Makro durchlaufen), wird trotzdem
@@ -535,8 +535,8 @@ der nächsten Aktualisierung überschrieben.
 
 ## Die Vorlage
 
-`tools/build_templates.py` erzeugt die SVG-Dateien und kopiert den Code zum Aufbau des Blatts in
-beide Makros — ändern Sie das Skript, nicht das SVG oder die Kopien, und führen Sie es erneut
+`tools/build_templates.py` erzeugt die SVG-Dateien und das Modul `sheet.py` des Add-ons, das das
+Blatt aufbaut — ändern Sie das Skript, nicht das SVG oder `sheet.py`, und führen Sie es erneut
 aus.
 
 Eine eigene Vorlage funktioniert ebenfalls, wenn sie ihre Felder wie die EasyPDM-Vorlage

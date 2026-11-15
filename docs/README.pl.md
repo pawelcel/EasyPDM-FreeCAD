@@ -1,17 +1,19 @@
-# EasyPDM — makra FreeCAD
+# EasyPDM dla FreeCAD — Upload i Download w szczegółach
 
 [English](README.md) | **Polski** | [Deutsch](README.de.md)
 
-Dwa niezależne makra, jedno na wysyłanie, jedno na pobieranie/otwieranie:
+Dwa polecenia dodatku, jedno na wysyłanie, jedno na pobieranie/otwieranie. Do 0.9 były to makra
+EasyPDMUpload.FCMacro i EasyPDMDownload.FCMacro, więc gdzie ta strona mówi "makro", chodzi o
+polecenie:
 
-- **`EasyPDMUpload.FCMacro`** wysyła aktywny dokument FreeCAD do EasyPDM. Makro nie pyta
+- **Upload** wysyła aktywny dokument FreeCAD do EasyPDM. Makro nie pyta
   lokalnie o NIC poza folderem zapisu — nawet wybór "nowy element czy dogranie do
   istniejącego" zapada w **przeglądarce systemowej** (opisane w tym pliku niżej), na tym
   samym formularzu/pasku co w aplikacji webowej — **z jednym wyjątkiem**: jeśli etykieta
   dokumentu już wygląda, jakby należała do istniejącego elementu PDM, makro pyta najpierw
   lokalnie, czy dograć ją tam jako nową rewizję, całkowicie omijając przeglądarkę (patrz
   "Lokalny skrót dla już rozpoznanego dokumentu" niżej).
-- **`EasyPDMDownload.FCMacro`** pobiera Część/Złożenie z EasyPDM (razem ze WSZYSTKIMI jego
+- **Download** pobiera Część/Złożenie z EasyPDM (razem ze WSZYSTKIMI jego
   składnikami, jeśli to Złożenie) i od razu je otwiera w FreeCAD (opisane w osobnej sekcji
   na końcu tego pliku).
 - Oba pilnują też, żeby **arkusz rysunkowy EasyPDM** na stronie TechDraw dokumentu był
@@ -23,10 +25,8 @@ w jednym starcza dla drugiego.
 ## Instalacja
 
 Zainstaluj dodatek tak, jak opisuje [README](../README.md#installing) (Menedżer dodatków FreeCAD
-albo ręcznie do folderu `Mod`). Jego **Upload** i **Download** to dwa makra opisane na tej
-stronie, `freecad/EasyPDM/EasyPDMUpload.FCMacro` i `EasyPDMDownload.FCMacro`, uruchamiane bez
-zmian. Uruchamianie tych plików ręcznie przez Makrodefinicje → Makra… → Wykonaj nadal działa, ale
-nie jest już wspieranym sposobem instalacji EasyPDM dla FreeCAD.
+albo ręcznie do folderu `Mod`). Jego **Upload** i **Download** to to, co opisuje ta strona
+(`freecad/EasyPDM/upload.py` i `download.py`, z `common.py` i `sheet.py`).
 
 ## Logowanie
 
@@ -58,7 +58,7 @@ dwie osobne.
    makro poprosi o "Zapisz jako" (standardowe okno FreeCAD), zanim cokolwiek wyśle.
 1a. **Pyta o folder docelowy** dla lokalnych kopii (Save As) wszystkich dokumentów wysyłanych
     w tej sesji (patrz krok 3 niżej) — domyślnie podpowiada ostatnio użyty (**współdzielona
-    preferencja z `EasyPDMDownload.FCMacro`** — ustaw ten sam folder w obu makrach, żeby
+    preferencja z **Download**** — ustaw ten sam folder w obu makrach, żeby
     wysłane i pobrane pliki lądowały razem w jednym miejscu). Pytane RAZ, na samym początku —
     obejmuje też automatycznie wykryte drzewo złożenia (część/pod-złożenia wysyłane wcześniej
     niż otwiera się główne okno).
@@ -156,7 +156,7 @@ dwie osobne.
    (`App::Link`) do tego dokumentu,
    zapisywane PO nim w tej samej sesji (automatycznie wykryte drzewo złożenia zawsze
    zapisuje złożenie jako ostatnie — zob. niżej), zapisze swój odnośnik już pod nową nazwą —
-   dokładnie tą, pod jaką `EasyPDMDownload.FCMacro` później zapisuje pobrane pliki, więc
+   dokładnie tą, pod jaką **Download** później zapisuje pobrane pliki, więc
    odnośniki po pobraniu od razu się zgadzają. **Bez tego złożenie po pobraniu szukałoby
    oryginalnej, sprzed-wysyłkowej nazwy pliku** (potwierdzone w praktyce komunikatem FreeCAD:
    `Link broken! ... File: <oryginalna_nazwa>.FCStd`).
@@ -365,12 +365,12 @@ krawędzie BOM, rejestracja w magazynie), pozostaje niezmienione.
 
 ---
 
-# EasyPDMDownload.FCMacro — pobieranie i otwieranie
+# Download — pobieranie i otwieranie
 
 Drugie makro: zamiast wysyłać, **pobiera** Część/Złożenie z EasyPDM i od razu **otwiera** je
 w FreeCAD. Logowanie i adres API są dokładnie tak samo skonfigurowane jak w
-`EasyPDMUpload.FCMacro` (te same preferencje FreeCAD) — osobna instalacja/uruchomienie
-(patrz "Instalacja" wyżej), ale wspólna sesja. Tak jak w `EasyPDMUpload.FCMacro`, wybór
+**Upload** (te same preferencje FreeCAD) — osobna instalacja/uruchomienie
+(patrz "Instalacja" wyżej), ale wspólna sesja. Tak jak w **Upload**, wybór
 elementu zapada w **przeglądarce systemowej**, nie w natywnym oknie — makro pyta lokalnie
 TYLKO o folder docelowy.
 
@@ -407,7 +407,7 @@ TYLKO o folder docelowy.
 
 EasyPDM nie ma osobnego "pliku elementu" dla Części/Złożenia — aktualny plik CAD jest
 załącznikiem (`item_attachments`), a przy KAŻDEJ wysyłce nowej rewizji przez
-`EasyPDMUpload.FCMacro` poprzednia kopia ZOSTAJE (nowy załącznik obok starego, różne nazwy:
+**Upload** poprzednia kopia ZOSTAJE (nowy załącznik obok starego, różne nazwy:
 `numer (nazwa).REWIZJA.rozszerzenie`) — więc historia rewizji jest w praktyce odtwarzalna
 z samej listy załączników, bez potrzeby osobnego API do "starych wersji pliku". Makro
 rozpoznaje tę konwencję nazw, żeby trafić w załącznik odpowiadający AKTUALNEJ rewizji
@@ -433,7 +433,7 @@ wgrany załącznik jako najlepsze przybliżenie.
   się automatycznie — wtedy trzeba je poprawić ręcznie w FreeCAD (Assembly4 ma do tego
   narzędzie "Make link relative"/zmianę ścieżki linku).
 - Współdzielony komponent (użyty w kilku miejscach drzewa) pobierany jest tylko raz
-  (rozpoznawany po ID elementu) — tak samo jak przy wysyłaniu w `EasyPDMUpload.FCMacro`.
+  (rozpoznawany po ID elementu) — tak samo jak przy wysyłaniu w **Upload**.
 - Rozpoznanie "to jest plik tego elementu" opiera się na tej samej konwencji nazw co
   wysyłanie (`numer (nazwa).REWIZJA.rozszerzenie`) — element, którego JEDYNY załącznik ma
   zupełnie inną nazwę (nigdy nie przeszedł przez żadne makro CAD), i tak zostanie pobrany
@@ -473,8 +473,8 @@ Wartości wpisane ręcznie w pola EasyPDM zostaną nadpisane przy najbliższym o
 
 ## Szablon
 
-`tools/build_templates.py` generuje pliki SVG i kopiuje kod budujący arkusz do obu makr —
-zmieniaj skrypt, nie SVG ani kopie, i uruchom go ponownie.
+`tools/build_templates.py` generuje pliki SVG i moduł dodatku `sheet.py`, który buduje arkusz —
+zmieniaj skrypt, nie SVG ani `sheet.py`, i uruchom go ponownie.
 
 Własny szablon też zadziała, jeśli nazwie pola tak jak szablon EasyPDM (`pdm_name`,
 `pdm_drawn_by`, `pdm_label_name`, …), a dla tabel i logo ma puste grupy o id `pdm_processes`,

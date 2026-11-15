@@ -1,17 +1,19 @@
-# EasyPDM — FreeCAD macros
+# EasyPDM for FreeCAD — Upload and Download in detail
 
 **English** | [Polski](README.pl.md) | [Deutsch](README.de.md)
 
-Two independent macros, one for uploading, one for downloading/opening:
+The add-on's two commands, one for uploading, one for downloading/opening. Until 0.9 they were
+the macros EasyPDMUpload.FCMacro and EasyPDMDownload.FCMacro, so where this page says "the macro"
+it means the command:
 
-- **`EasyPDMUpload.FCMacro`** sends the active FreeCAD document to EasyPDM. The macro asks
+- **Upload** sends the active FreeCAD document to EasyPDM. The macro asks
   NOTHING locally except the save folder — even the choice of "new item or attach to an
   existing one" is decided in the **system browser** (described further down in this
   file), on the same form/bar as in the web application — **with one exception**: if the
   document's label already looks like it belongs to an existing PDM item, the macro asks
   locally first whether to attach it there as a new revision, bypassing the browser
   entirely (see "Local shortcut for an already-recognized document" below).
-- **`EasyPDMDownload.FCMacro`** downloads a Part/Assembly from EasyPDM (together with ALL
+- **Download** downloads a Part/Assembly from EasyPDM (together with ALL
   of its components, if it's an Assembly) and opens it in FreeCAD right away (described in
   a separate section at the end of this file).
 - Both also keep the **EasyPDM drawing sheet** on a document's TechDraw page filled in from
@@ -23,10 +25,8 @@ with one is enough for the other.
 ## Installation
 
 Install the add-on as the [README](../README.md#installing) describes (FreeCAD's Addon Manager,
-or by hand into the `Mod` folder). Its **Upload** and **Download** are the two macros this page
-describes, `freecad/EasyPDM/EasyPDMUpload.FCMacro` and `EasyPDMDownload.FCMacro`, run unchanged.
-Running those files by hand through Macro → Macros… → Execute still works, but is no longer a
-supported way to install EasyPDM for FreeCAD.
+or by hand into the `Mod` folder). Its **Upload** and **Download** are what this page describes
+(`freecad/EasyPDM/upload.py` and `download.py`, with `common.py` and `sheet.py`).
 
 ## Login
 
@@ -60,7 +60,7 @@ operation**, not two separate ones.
 
 1a. **Asks for the target folder** for local copies (Save As) of all documents sent
     during this session (see step 3 below) — by default it suggests the last one used
-    (**a preference shared with `EasyPDMDownload.FCMacro`** — set the same folder in both
+    (**a preference shared with **Download**** — set the same folder in both
     macros so uploaded and downloaded files end up together in one place). Asked ONCE,
     right at the start — this also covers the automatically detected assembly tree
     (parts/sub-assemblies sent before the main window even opens).
@@ -163,7 +163,7 @@ operation**, not two separate ones.
    but `doc.FileName` now points to the new one. Thanks to this, an assembly linking
    (`App::Link`) to this document, saved AFTER it in the same session (the automatically
    detected assembly tree always saves the assembly last — see below), will save its
-   reference already under the new name — exactly the one `EasyPDMDownload.FCMacro` later
+   reference already under the new name — exactly the one **Download** later
    saves downloaded files under, so references line up right away after downloading.
    **Without this, the assembly would look for the original, pre-upload file name after
    downloading** (confirmed in practice by the FreeCAD message: `Link broken! ... File:
@@ -387,13 +387,13 @@ registration) is unchanged.
 
 ---
 
-# EasyPDMDownload.FCMacro — downloading and opening
+# Download — downloading and opening
 
 The second macro: instead of uploading, it **downloads** a Part/Assembly from EasyPDM and
 **opens** it in FreeCAD right away. Login and the API address are configured in exactly
-the same way as in `EasyPDMUpload.FCMacro` (the same FreeCAD preferences) — a separate
+the same way as in **Upload** (the same FreeCAD preferences) — a separate
 install/run (see "Installation" above), but a shared session. Just as in
-`EasyPDMUpload.FCMacro`, the item choice is made in the **system browser**, not in a
+**Upload**, the item choice is made in the **system browser**, not in a
 native window — the macro only asks locally about the target folder.
 
 ## What it does
@@ -432,7 +432,7 @@ native window — the macro only asks locally about the target folder.
 
 EasyPDM has no separate "item file" for a Part/Assembly — the current CAD file is an
 attachment (`item_attachments`), and on EVERY new-revision upload via
-`EasyPDMUpload.FCMacro` the previous copy STAYS (a new attachment alongside the old one,
+**Upload** the previous copy STAYS (a new attachment alongside the old one,
 with different names: `number (name).REVISION.extension`) — so revision history is, in
 practice, reconstructable from the attachment list alone, with no need for a separate
 "old file versions" API. The macro recognizes this naming convention in order to hit the
@@ -459,7 +459,7 @@ best approximation.
   automatically — in that case they need to be fixed manually in FreeCAD (Assembly4 has a
   "Make link relative"/change-link-path tool for this).
 - A shared component (used in several places in the tree) is downloaded only once
-  (recognized by item ID) — the same as when uploading in `EasyPDMUpload.FCMacro`.
+  (recognized by item ID) — the same as when uploading in **Upload**.
 - Recognizing "this is the file for this item" relies on the same naming convention as
   uploading (`number (name).REVISION.extension`) — an item whose ONLY attachment has a
   completely different name (never went through any CAD macro) will still be downloaded
@@ -509,8 +509,8 @@ refresh.
 
 ## The template
 
-`tools/build_templates.py` generates the SVGs and copies the sheet-building code into both
-macros — edit the script, not the SVG or the copies, and rerun it.
+`tools/build_templates.py` generates the SVGs and the add-on's `sheet.py`, which builds the
+sheet — edit the script, not the SVG or `sheet.py`, and rerun it.
 
 A custom template works too if it names its fields like the EasyPDM one (`pdm_name`,
 `pdm_drawn_by`, `pdm_label_name`, …) and, for the tables and the logo, has empty groups with

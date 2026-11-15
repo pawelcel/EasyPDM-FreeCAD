@@ -8,24 +8,27 @@ live in [pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM), which has its o
 FreeCAD's namespaced add-on layout, installed as it is by the Addon Manager — nothing is built:
 `package.xml`, `LICENSE` and `README.md` at the top, the code in `freecad/EasyPDM/`
 (`init_gui.py`, imported by FreeCAD itself; `easypdm_addon.py`, the workbench and commands;
-`EasyPDMUpload.FCMacro` / `EasyPDMDownload.FCMacro`, the upload and download engine the commands
-load and run unchanged). Never manipulate `sys.path`; FreeCAD's Addon Index forbids it.
+`upload.py` / `download.py`, the upload and download the commands run, reloaded before each run
+so per-run state starts fresh; `common.py`, what both use: settings, HTTP, login, translations;
+`sheet.py`, the drawing sheet, generated). They were the EasyPDMUpload/EasyPDMDownload macros
+until 0.9, which is why their comments still say "makro". Never manipulate `sys.path`; FreeCAD's
+Addon Index forbids it.
 
 The login token lives in `secure_store.py` (system secret storage, plain parameters only as a
-fallback). The macros read and write it only through `get_session_token`/`set_session_token`,
-which `load_macro` replaces with the store's; keep it that way if the macros change. Test the
+fallback). Upload and download read and write it only through `common.get_session_token`/
+`set_session_token`. Test the
 Linux backend with a stand-in `secret-tool` on `PATH`, not the user's real wallet (it can pop up
 an unlock window).
 
 ## Drawing sheets are generated
 
 `tools/build_templates.py` is the single source of the EasyPDM drawing sheet. It writes the SVG
-templates in `freecad/EasyPDM/templates/`, copies the shared block between the BEGIN/END SHARED
-markers into both macros and, with `--solidworks PATH`, writes
+templates in `freecad/EasyPDM/templates/`, writes the shared block between the BEGIN/END SHARED
+markers out as `freecad/EasyPDM/sheet.py` and, with `--solidworks PATH`, writes
 `EasyPDM.SolidWorks/EasyPDMSheetFormat.bas` in a checkout of pawelcel/EasyPDM. Edit the script,
 never its outputs. After a layout change, run it with `--solidworks`, commit the `.bas` there too,
 and rebuild the SolidWorks sheet formats in `EasyPDM.SolidWorks/templates/` on a live SolidWorks.
-CI fails when the committed templates or shared blocks differ from what the script writes.
+CI fails when the committed templates or `sheet.py` differ from what the script writes.
 
 ## Testing
 

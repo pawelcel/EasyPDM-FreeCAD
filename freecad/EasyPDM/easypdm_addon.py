@@ -1,23 +1,24 @@
 # EasyPDM add-on for FreeCAD: an EasyPDM workbench with Upload, Download, Log in and Log out,
-# instead of running the macros by hand. The same menu can also be shown in every workbench,
+# instead of running macros by hand. The same menu can also be shown in every workbench,
 # off by default (FreeCAD's Addon Index asks add-ons to keep to their own workbench unless the
 # user asks otherwise): "EasyPDM menu in every workbench" in the workbench's menu.
 #
-# Upload and Download are the macros themselves (EasyPDMUpload.FCMacro, EasyPDMDownload.FCMacro
-# next to this file): each menu click loads the macro afresh into its own namespace and calls its
-# entry point, exactly as Macro > Execute runs it, so the add-on and the macros can never drift
-# apart and nothing of the live-tested upload/download logic is copied here. They share the
-# settings in User parameter:BaseApp/EasyPDM (ApiBaseUrl, SavedDisplayName); the login token
-# itself is kept in the system's secret storage (secure_store.py), and the macros loaded here
-# are handed the add-on's token functions in place of their own plain-parameter ones.
+# Upload and Download live in upload.py and download.py (the former EasyPDMUpload/
+# EasyPDMDownload macros), with what both use in common.py and the drawing sheet in sheet.py,
+# which tools/build_templates.py generates. Each menu click reloads the module it runs, so every
+# run starts from fresh per-run state, as a macro did when it was executed. Settings are in
+# User parameter:BaseApp/EasyPDM (ApiBaseUrl, SavedDisplayName); the login token is kept in the
+# system's secret storage (secure_store.py).
 #
 # Log in approves the sign-in in the browser (POST /api/auth/device/start, DeviceLoginEndpoints
 # on the server): FreeCAD never sees the password, and gets its own macro token, listed and
-# revocable under Settings > Users. "Log in with password" falls back to the macros' own login
-# dialog, for servers older than 0.9.
+# revocable under Settings > Users. "Log in with password" falls back to the user name and
+# password dialog (common.LoginDialog), for servers older than 0.9.
 
+import importlib
 import json
 import os
+import sys
 import urllib.error
 import urllib.request
 import webbrowser
@@ -41,7 +42,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CLIENT_NAME = "EasyPDM for FreeCAD"
 
 
-# Menu texts in FreeCAD's own language (Preferences > General > Language), as the macros do.
+# Menu texts in FreeCAD's own language (Preferences > General > Language), as upload and download do.
 _TEXTS = {
     "pl": {"Upload": "Wyślij (Upload)", "Download": "Pobierz (Download)", "Log in…": "Zaloguj…", "Log out": "Wyloguj",
            "EasyPDM menu in every workbench": "Menu EasyPDM w każdym środowisku pracy",
@@ -159,21 +160,24 @@ def api_error(status, body):
     return "HTTP %s" % status
 
 
-_resolver = None
+def module(name, fresh=False):
+    """upload, download, common or sheet; with fresh=True reloaded first, so a run starts from
+    clean per-run state (upload's _RUN, download's _CANCEL) as an executed macro did."""
+    full = "%s.%s" % (__package__, name)
+    if full not in sys.modules:
+        return importlib.import_module(full)
+    return importlib.reload(sys.modules[full]) if fresh else sys.modules[full]
 
 
 def item_for(doc):
     """The EasyPDM item of `doc` (as GET /items/{id} returns it), or None when it has none.
 
-    The same match the Upload macro makes before an upload: the document's label is the record
+    The same match the upload makes before sending: the document's label is the record
     name and revision it was saved under ("C0012(Bracket).B"), and number and name must both
     agree with the item -- so a file merely named like one is not taken for it."""
-    global _resolver
     if doc is None:
         return None
-    if _resolver is None:
-        _resolver = load_macro("EasyPDMUpload.FCMacro")
-    return _resolver["match_existing_item_single"](doc)
+    return module("upload").match_existing_item_single(doc)
 
 
 def require_item(doc):
@@ -189,22 +193,6 @@ def require_item(doc):
 
 def item_label(item):
     return item.get("recordName") or "%s(%s)" % (item.get("itemNumber"), item.get("name") or item.get("fileName"))
-
-
-def load_macro(file_name):
-    """The macro as a module: its globals, without running it (its guard needs __main__)."""
-    path = os.path.join(HERE, file_name)
-    with open(path, encoding="utf-8") as f:
-        source = f.read()
-    namespace = {"__name__": "easypdm_" + os.path.splitext(file_name)[0].lower(), "__file__": path}
-    exec(compile(source, path, "exec"), namespace)
-    # The macros keep the token in FreeCAD's plain parameters; inside the add-on it lives in the
-    # system's secret storage instead. They read and write it only through these two functions,
-    # which they look up as globals at call time, so replacing them here covers every use.
-    base_url = namespace["get_base_url"]
-    namespace["get_session_token"] = lambda: secure_store.get(base_url())
-    namespace["set_session_token"] = lambda token: secure_store.set(base_url(), token)
-    return namespace
 
 
 class DeviceLoginDialog(QtWidgets.QDialog):
@@ -309,8 +297,7 @@ class DeviceLoginDialog(QtWidgets.QDialog):
         if server:
             _params().SetString("ApiBaseUrl", server + "/api")
         self.timer.stop()
-        macro = load_macro("EasyPDMUpload.FCMacro")
-        if macro["LoginDialog"]().exec() == QtWidgets.QDialog.Accepted:
+        if module("common").LoginDialog().exec() == QtWidgets.QDialog.Accepted:
             self.accept()
 
 
@@ -361,11 +348,10 @@ def release_item():
 
 def refresh_sheet():
     """Fills the EasyPDM drawing sheet of the active document with the item's current data,
-    without uploading anything -- the same refresh Upload and Download do (refresh_sheets in the
-    macros' shared block); pages without the EasyPDM sheet are left alone and nothing is saved."""
+    without uploading anything -- the same refresh Upload and Download do (sheet.refresh_sheets); pages without the EasyPDM sheet are left alone and nothing is saved."""
     doc = App.ActiveDocument
     item = require_item(doc)
-    changed = load_macro("EasyPDMUpload.FCMacro")["refresh_sheets"](doc, item["id"], None, True)
+    changed = module("sheet").refresh_sheets(doc, item["id"], None, True)
     if changed:
         doc.recompute()
         _notify(_tr("Drawing sheet refreshed on {pages}.", pages=", ".join(p.Label for p in changed)))
@@ -412,9 +398,9 @@ class _Command:
 
 COMMANDS = [
     ("EasyPDM_Upload", _Command("Upload", "Send the active document to EasyPDM",
-                                lambda: load_macro("EasyPDMUpload.FCMacro")["run"](), "Upload", needs_document=True)),
+                                lambda: module("upload", fresh=True).run(), "Upload", needs_document=True)),
     ("EasyPDM_Download", _Command("Download", "Download an item from EasyPDM with its components",
-                                  lambda: load_macro("EasyPDMDownload.FCMacro")["main"](), "Download")),
+                                  lambda: module("download", fresh=True).main(), "Download")),
     ("EasyPDM_Panel", _Command("Document panel", "Show the active document's item in EasyPDM", toggle_panel, "Panel")),
     ("EasyPDM_Lock", _Command("Lock for editing", "Lock the active document's item so only you can change it",
                               lock_item, "Lock", needs_document=True)),

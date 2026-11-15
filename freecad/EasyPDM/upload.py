@@ -1,18 +1,15 @@
 # -*- coding: utf-8 -*-
 """
-EasyPDMUpload — makro FreeCAD do wysyłania aktywnego dokumentu do EasyPDM.
-
-Instalacja / uruchomienie:
-    Macro -> Macros... -> "Add path to macro path list" -> wskaż ten folder,
-    albo po prostu "Execute macro from file" i wybierz ten plik bezpośrednio.
-    Nie wymaga instalacji jako workbench.
+Wysyłanie aktywnego dokumentu do EasyPDM: polecenie Upload dodatku EasyPDM
+(dawniej makro EasyPDMUpload.FCMacro, stąd "makro" w opisach niżej). Wspólny kod z pobieraniem
+jest w common.py, arkusz rysunku w sheet.py.
 
 Co robi (w tej kolejności):
     1. Zapisuje aktywny dokument na dysku (jeśli nie był jeszcze zapisany, prosi o
        wskazanie ścieżki przez natywne okno "Zapisz jako").
     1a. Pyta o FOLDER DOCELOWY dla lokalnych kopii (Save As) wszystkich dokumentów,
         które zostaną wysłane w tej sesji (patrz punkt 3 niżej) — domyślnie podpowiada
-        ostatnio użyty (WSPÓLNA preferencja z EasyPDMDownload.FCMacro, DownloadFolder),
+        ostatnio użyty (WSPÓLNA preferencja z download.py, DownloadFolder),
         z możliwością zmiany. Pytane RAZ, na samym początku — obejmuje też automatycznie
         wykryte drzewo złożenia (część/pod-złożenia), wysyłane wcześniej niż otwiera się
         główne okno.
@@ -82,7 +79,7 @@ Co robi (w tej kolejności):
        ale doc.FileName od teraz wskazuje na nowy. Dzięki temu złożenie linkujące (App::Link)
        do tego dokumentu, zapisywane PO nim w tej samej sesji (a automatycznie wykryte drzewo
        złożenia zawsze zapisuje złożenie jako ostatnie — patrz niżej), zapisze swój odnośnik
-       już pod nową nazwą — dokładnie tą, pod jaką EasyPDMDownload.FCMacro później zapisuje
+       już pod nową nazwą — dokładnie tą, pod jaką download.py później zapisuje
        pobrane pliki, więc odnośniki po pobraniu od razu się zgadzają (bez tego złożenie
        szukałoby oryginalnej, sprzed-wysyłkowej nazwy pliku, potwierdzone w praktyce
        komunikatem FreeCAD "Link broken! ... File: <oryginalna_nazwa>.FCStd"). Plik zawsze
@@ -174,9 +171,7 @@ import uuid
 import webbrowser
 from urllib import error, request
 from urllib.parse import quote, urlencode
-
 import FreeCAD as App
-
 try:
     from PySide6 import QtCore, QtWidgets
 except ImportError:
@@ -186,1015 +181,34 @@ except ImportError:
         from PySide import QtCore
         from PySide import QtGui as QtWidgets  # bardzo stare FreeCAD (Qt4)
 
+from .common import (  # noqa: F401
+    _auth_headers,
+    _focus_browser_window,
+    _main_window,
+    _raise_for_http_error,
+    _show_on_top,
+    api_get,
+    api_logout,
+    api_post_json,
+    ensure_logged_in,
+    get_base_url,
+    get_download_folder,
+    get_saved_username,
+    open_in_browser,
+    revision_label,
+    sanitize_filename,
+    set_base_url,
+    set_download_folder,
+    t,
+)
+from .sheet import (  # noqa: F401
+    SHEET_FORMATS,
+    SHEET_TITLE_PREFIX,
+    _sh_template_text,
+    refresh_sheets,
+)
 
-# ===== BEGIN SHARED (copied into EasyPDMUpload.FCMacro and EasyPDMDownload.FCMacro by tools/build_templates.py; edit it there) =====
-import base64 as _sh_base64
-import glob as _sh_glob
-import time as _sh_time
-from datetime import datetime as _sh_datetime
-from xml.sax.saxutils import escape as _xml_escape
 
-FREECAD_NS = "https://www.freecad.org/wiki/index.php?title=Svg_Namespace"
-SHEET_TITLE_PREFIX = "EasyPDM drawing sheet"
-SHEET_FONT = "osifont"  # ISO 3098 lettering shipped with FreeCAD (Mod/TechDraw/Resources/fonts)
-ZONE_LETTERS = "ABCDEFGHJKLMNPQRSTUVWXYZ"
-# Landscape formats: width, height (mm) and the number of grid reference fields across and
-# down, as ISO 5457 sets them. The fields are 50 mm, laid out symmetrically from the centre
-# lines, so the outermost ones absorb the remainder (A1: 50.5 mm at the left) instead of
-# leaving a sliver next to the frame.
-SHEET_FORMATS = {
-    "A3": (420, 297, 8, 6),
-    "A2": (594, 420, 12, 8),
-    "A1": (841, 594, 16, 12),
-}
-
-_THIN = "fill:none;stroke:#000000;stroke-width:0.35;stroke-linecap:round;stroke-linejoin:round"
-_THICK = "fill:none;stroke:#000000;stroke-width:0.7;stroke-linecap:round;stroke-linejoin:round"
-
-# Field labels in English; the macro overwrites them with the project's main language from
-# the server's document labels (Settings -> Language -> Labels in documents, keys
-# titleblock.*). Template field name -> server label key.
-SHEET_LABELS = {
-    "drawn_by": ("drawnBy", "DRAWN BY"),
-    "drawn_date": ("date", "DATE"),
-    "approved_by": ("approvedBy", "APPROVED BY"),
-    "approved_date": ("date", "DATE"),
-    "material": ("material", "MATERIAL"),
-    "scale": ("scale", "SCALE"),
-    "sheet": ("sheet", "SHEET"),
-    "mass": ("mass", "MASS"),
-    "company": ("company", "COMPANY"),
-    "name": ("name", "NAME"),
-    "drawing_number": ("drawingNumber", "DRAWING NUMBER"),
-    "revision": ("revision", "REVISION"),
-    "format": ("format", "FORMAT"),
-}
-
-
-def _sh_f(v):
-    return ("%.2f" % v).rstrip("0").rstrip(".")
-
-
-def _sh_esc(text):
-    return _xml_escape(text or "", {'"': "&quot;"})
-
-
-def approx_text_width(text, size):
-    """Width in mm of `text` set in osifont at `size` mm -- a fallback for when Qt cannot
-    measure (no GUI). osifont is narrow; 0.58 em per character errs on the wide side, so a
-    line wraps a little early rather than running past its cell."""
-    return len(text or "") * size * 0.58
-
-
-def wrap_text(text, width, size, measure):
-    """Splits `text` into lines no wider than `width` mm, at spaces; a single word longer
-    than the line is left whole rather than cut mid-word."""
-    lines = []
-    for para in (text or "").splitlines() or [""]:
-        line = ""
-        for word in para.split(" "):
-            candidate = word if not line else line + " " + word
-            if line and measure(candidate, size) > width:
-                lines.append(line)
-                line = word
-            else:
-                line = candidate
-        lines.append(line)
-    while lines and lines[-1] == "":
-        lines.pop()
-    return lines
-
-
-def wrap_joined(parts, width, size, measure, sep=" · "):
-    """Translations as "EN: Cube · DE: Würfel": on one line while they fit, otherwise one
-    language per line (each wrapped further if it is still too long)."""
-    parts = [p for p in parts if p]
-    if not parts:
-        return []
-    joined = sep.join(parts)
-    if measure(joined, size) <= width:
-        return [joined]
-    lines = []
-    for p in parts:
-        lines.extend(wrap_text(p, width, size, measure))
-    return lines
-
-
-def _sh_text(x, y, content, size, extra=""):
-    return '<text x="%s" y="%s" style="font-size:%spx;fill:#000000%s">%s</text>' % (
-        _sh_f(x), _sh_f(y), _sh_f(size), extra, _sh_esc(content))
-
-
-def _sh_line(x1, y1, x2, y2):
-    return '<path d="M %s,%s L %s,%s"/>' % (_sh_f(x1), _sh_f(y1), _sh_f(x2), _sh_f(y2))
-
-
-def build_base_sheet(fmt_name, rec=None):
-    """The bare template for one format: frame, grid reference, title block with empty
-    pdm_* fields and the three empty groups.
-
-    `rec`, when given ({"lines": [], "texts": [], "anchors": {}}), also receives every line
-    (x1, y1, x2, y2, width) and text (x, baseline_y, text, size, bold, anchor, field) in mm,
-    y down from the top edge -- what build_templates.py turns into the SolidWorks macro that
-    draws the same sheet format."""
-    W, H, fields_x, fields_y = SHEET_FORMATS[fmt_name]
-    o = []
-    add = o.append
-
-    def ln(x1, y1, x2, y2, width):
-        if rec is not None:
-            rec["lines"].append((x1, y1, x2, y2, width))
-        return _sh_line(x1, y1, x2, y2)
-
-    def box(x, y, w, h, width):
-        if rec is not None:
-            for seg in ((x, y, x + w, y), (x + w, y, x + w, y + h), (x + w, y + h, x, y + h), (x, y + h, x, y)):
-                rec["lines"].append(seg + (width,))
-
-    def txt(x, y, text, size, bold=False, anchor="start", field=None):
-        if rec is not None:
-            rec["texts"].append((x, y, text, size, bold, anchor, field))
-    add('<g id="sheet" style="font-family:%s">' % SHEET_FONT)
-
-    FL, FT, FR, FB = 20, 10, W - 10, H - 10      # drawing frame
-    OL, OT, OR, OB = 15, 5, W - 5, H - 5         # outer line of the grid strip
-    cx, cy = W / 2.0, H / 2.0
-    box(FL, FT, FR - FL, FB - FT, 0.7)
-    add('<rect id="drawing_frame" x="%s" y="%s" width="%s" height="%s" style="%s"/>'
-        % (FL, FT, _sh_f(FR - FL), _sh_f(FB - FT), _THICK))
-    xs = [cx + 50 * k for k in range(-(fields_x // 2 - 1), fields_x // 2)]
-    ys = [cy + 50 * k for k in range(-(fields_y // 2 - 1), fields_y // 2)]
-    add('<g id="grid_reference" style="%s">' % _THIN)
-    box(OL, OT, OR - OL, OB - OT, 0.35)
-    add('<rect x="%s" y="%s" width="%s" height="%s"/>' % (OL, OT, _sh_f(OR - OL), _sh_f(OB - OT)))
-    for x in xs:
-        add(ln(x, OT, x, FT, 0.35))
-        add(ln(x, FB, x, OB, 0.35))
-    for y in ys:
-        add(ln(OL, y, FL, y, 0.35))
-        add(ln(FR, y, OR, y, 0.35))
-    add("</g>")
-    cols, rows = [FL] + xs + [FR], [FT] + ys + [FB]
-    add('<g id="grid_reference_markers" style="font-size:3.5px;text-anchor:middle;fill:#000000;stroke:none">')
-    for i in range(len(cols) - 1):
-        m = (cols[i] + cols[i + 1]) / 2
-        for y in (OT + 3.75, FB + 3.75):
-            txt(m, y, str(i + 1), 3.5, anchor="middle")
-            add('<text x="%s" y="%s">%d</text>' % (_sh_f(m), _sh_f(y), i + 1))
-    for i in range(len(rows) - 1):
-        m = (rows[i] + rows[i + 1]) / 2 + 1.25
-        for x in ((OL + FL) / 2.0, (FR + OR) / 2.0):
-            txt(x, m, ZONE_LETTERS[i], 3.5, anchor="middle")
-            add('<text x="%s" y="%s">%s</text>' % (_sh_f(x), _sh_f(m), ZONE_LETTERS[i]))
-    add("</g>")
-    add('<g id="centring_marks" style="%s">' % _THICK)
-    add(ln(cx, 0, cx, FT + 5, 0.7))
-    add(ln(cx, H, cx, FB - 5, 0.7))
-    add(ln(0, cy, FL + 5, cy, 0.7))
-    add(ln(W, cy, FR - 5, cy, 0.7))
-    add("</g>")
-
-    # Title block 180 x 44 mm in the bottom-right corner.
-    x0, y0 = FR - 180, FB - 44
-    X = lambda dx: x0 + dx
-    Y = lambda dy: y0 + dy
-    add('<g id="title_block_lines" style="%s">' % _THIN)
-    add(ln(X(70), Y(0), X(70), Y(44), 0.35))
-    for dy in (11, 22, 33):
-        add(ln(X(0), Y(dy), X(70), Y(dy), 0.35))
-    add(ln(X(46), Y(0), X(46), Y(22), 0.35))
-    add(ln(X(22), Y(33), X(22), Y(44), 0.35))
-    add(ln(X(40), Y(33), X(40), Y(44), 0.35))
-    add(ln(X(70), Y(11), X(180), Y(11), 0.35))
-    add(ln(X(70), Y(28), X(180), Y(28), 0.35))
-    add(ln(X(163), Y(11), X(163), Y(28), 0.35))
-    add(ln(X(140), Y(28), X(140), Y(44), 0.35))
-    add(ln(X(163), Y(28), X(163), Y(44), 0.35))  # in line with the logo square's edge above
-    add("</g>")
-    box(x0, y0, 180, 44, 0.7)
-    add('<rect id="title_block_frame" x="%s" y="%s" width="180" height="44" style="%s"/>'
-        % (_sh_f(x0), _sh_f(y0), _THICK))
-
-    def label(key, x, y):
-        txt(x, y, SHEET_LABELS[key][1], 2.0, field="pdm_label_" + key)
-        add('<text freecad:editable="pdm_label_%s" x="%s" y="%s" style="font-size:2px;fill:#000000">'
-            "<tspan>%s</tspan></text>" % (key, _sh_f(x), _sh_f(y), _sh_esc(SHEET_LABELS[key][1])))
-
-    def value(key, x, y, size=3.5, text="", bold=False, anchor="start", autofill=None):
-        style = "font-size:%spx;fill:#000000" % _sh_f(size)
-        if bold:
-            style += ";font-weight:bold"
-        if anchor != "start":
-            style += ";text-anchor:%s" % anchor
-        txt(x, y, text, size, bold, anchor, "pdm_" + key)
-        extra = ' freecad:autofill="%s"' % autofill if autofill else ""
-        add('<text freecad:editable="pdm_%s"%s x="%s" y="%s" style="%s"><tspan>%s</tspan></text>'
-            % (key, extra, _sh_f(x), _sh_f(y), style, _sh_esc(text)))
-
-    add('<g id="title_block_fields" style="fill:#000000;stroke:none">')
-    label("drawn_by", X(1.5), Y(3));        value("drawn_by", X(1.5), Y(8.5))
-    label("drawn_date", X(47.5), Y(3));     value("drawn_date", X(47.5), Y(8.5))
-    label("approved_by", X(1.5), Y(14));    value("approved_by", X(1.5), Y(19.5))
-    label("approved_date", X(47.5), Y(14)); value("approved_date", X(47.5), Y(19.5))
-    label("material", X(1.5), Y(25));       value("material", X(1.5), Y(30.5))
-    label("scale", X(1.5), Y(36));          value("scale", X(1.5), Y(41.5), text="1:1", autofill="scale")
-    label("sheet", X(23.5), Y(36));         value("sheet", X(23.5), Y(41.5), text="1 / 1", autofill="sheet")
-    label("mass", X(41.5), Y(36));          value("mass", X(41.5), Y(41.5))
-    label("company", X(71.5), Y(3));        value("company", X(71.5), Y(8.8), bold=True)
-    label("name", X(71.5), Y(14));          value("name", X(71.5), Y(21.5), size=6, bold=True)
-    value("name_translations", X(71.5), Y(26.3), size=2.3)
-    label("drawing_number", X(71.5), Y(31)); value("drawing_number", X(71.5), Y(40), size=5, bold=True)
-    label("revision", X(141.5), Y(31));     value("revision", X(151.5), Y(41.5), size=7, bold=True, anchor="middle")
-    label("format", X(164.5), Y(31));       value("format", X(171.5), Y(41), size=5, text=fmt_name, anchor="middle")
-    add("</g>")
-
-    if rec is not None:
-        rec["anchors"].update({"logo": (X(163), Y(11), 17.0), "processes": (x0, y0, 180.0), "revisions": (FR, FT, 160.0)})
-    add('<g id="pdm_logo" data-x="%s" data-y="%s" data-size="17"/>' % (_sh_f(X(163)), _sh_f(Y(11))))
-    add('<g id="pdm_processes" data-x="%s" data-bottom="%s" data-width="180"/>' % (_sh_f(x0), _sh_f(y0)))
-    add('<g id="pdm_revisions" data-right="%s" data-top="%s" data-width="160"/>' % (_sh_f(FR), _sh_f(FT)))
-    add("</g>")
-
-    return (
-        '<?xml version="1.0" encoding="UTF-8" standalone="no"?>\n'
-        '<!-- Generated by EasyPDM.FreeCad/templates/build_templates.py; do not edit by hand. -->\n'
-        '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink"'
-        ' xmlns:freecad="%s" version="1.1"\n'
-        '     width="%smm" height="%smm" viewBox="0 0 %s %s">\n'
-        '  <title>%s %s landscape</title>\n'
-        % (FREECAD_NS, _sh_f(W), _sh_f(H), _sh_f(W), _sh_f(H), SHEET_TITLE_PREFIX, fmt_name)
-        + "\n".join("  " + p for p in o) + "\n</svg>\n"
-    )
-
-
-def _processes_table(x0, bottom, width, rows, headers, measure):
-    """rows: [{"name", "description", "nameTr": [..], "descTr": [..]}] in the item's order;
-    headers: (no, process, description). Header at the bottom, row 1 right above it."""
-    w_no, w_name = 10.0, 60.0
-    w_desc = width - w_no - w_name
-    MAIN, SMALL, LH_MAIN, LH_SMALL, HDR = 3.4, 2.3, 3.6, 2.7, 6.0
-    pad = 1.5
-    built = []
-    for i, r in enumerate(rows):
-        name_l = wrap_text(r.get("name", ""), w_name - 2 * pad, MAIN, measure) or [""]
-        desc_l = wrap_text(r.get("description", ""), w_desc - 2 * pad, MAIN, measure)
-        ntr_l = wrap_joined(r.get("nameTr", []), w_name - 2 * pad, SMALL, measure)
-        dtr_l = wrap_joined(r.get("descTr", []), w_desc - 2 * pad, SMALL, measure)
-        h = 1.6 + LH_MAIN * max(len(name_l), len(desc_l), 1) + LH_SMALL * max(len(ntr_l), len(dtr_l)) + 0.8
-        built.append((i + 1, name_l, desc_l, ntr_l, dtr_l, max(h, 6.0)))
-    hdr_top = bottom - HDR
-    top = hdr_top - sum(b[5] for b in built)
-    o = ['<g style="%s">' % _THIN]
-    o.append(_sh_line(x0 + w_no, top, x0 + w_no, bottom))
-    o.append(_sh_line(x0 + w_no + w_name, top, x0 + w_no + w_name, bottom))
-    o.append(_sh_line(x0, hdr_top, x0 + width, hdr_top))
-    yb = hdr_top
-    for b in built:
-        yt = yb - b[5]
-        o.append(_sh_line(x0, yt, x0 + width, yt))
-        yb = yt
-    o.append('</g><g style="%s">' % _THICK)
-    o.append('<rect x="%s" y="%s" width="%s" height="%s"/>' % (_sh_f(x0), _sh_f(top), _sh_f(width), _sh_f(bottom - top)))
-    o.append("</g>")
-    o.append(_sh_text(x0 + pad, hdr_top + 4.2, headers[0], 2.4, ";font-weight:bold"))
-    o.append(_sh_text(x0 + w_no + pad, hdr_top + 4.2, headers[1], 2.4, ";font-weight:bold"))
-    o.append(_sh_text(x0 + w_no + w_name + pad, hdr_top + 4.2, headers[2], 2.4, ";font-weight:bold"))
-    yb = hdr_top
-    for n, name_l, desc_l, ntr_l, dtr_l, h in built:
-        yt = yb - h
-        o.append(_sh_text(x0 + w_no / 2.0, yt + 5.0, str(n), MAIN, ";text-anchor:middle"))
-        for col_x, main_l, small_l in ((x0 + w_no + pad, name_l, ntr_l), (x0 + w_no + w_name + pad, desc_l, dtr_l)):
-            y = yt + 4.4
-            for line in main_l:
-                o.append(_sh_text(col_x, y, line, MAIN))
-                y += LH_MAIN
-            if not main_l:
-                y += LH_MAIN
-            y -= 0.6
-            for line in small_l:
-                o.append(_sh_text(col_x, y, line, SMALL))
-                y += LH_SMALL
-        yb = yt
-    return o
-
-
-def _revisions_table(right, top, width, rows, headers, measure):
-    """rows: [{"label", "date", "description", "by"}] oldest first; headers: (rev, date,
-    description, by). Header at the top, rows growing downward."""
-    x0 = right - width
-    w_rev, w_date, w_by = 12.0, 22.0, 26.0
-    w_desc = width - w_rev - w_date - w_by
-    SIZE, LH, HDR, pad = 2.6, 3.2, 6.0, 1.5
-    o_lines, o_text = [], []
-    y = top + HDR
-    o_lines.append(_sh_line(x0, y, right, y))
-    for r in rows:
-        desc_l = wrap_text(r.get("description", ""), w_desc - 2 * pad, SIZE, measure) or [""]
-        by_l = wrap_text(r.get("by", ""), w_by - 2 * pad, SIZE, measure) or [""]
-        h = max(8.0, 3.0 + LH * max(len(desc_l), len(by_l)))
-        o_text.append(_sh_text(x0 + w_rev / 2.0, y + 5.3, r.get("label", ""), 3.4, ";font-weight:bold;text-anchor:middle"))
-        o_text.append(_sh_text(x0 + w_rev + pad, y + 5.3, r.get("date", ""), SIZE))
-        for i, line in enumerate(desc_l):
-            o_text.append(_sh_text(x0 + w_rev + w_date + pad, y + 5.3 + i * LH, line, SIZE))
-        for i, line in enumerate(by_l):
-            o_text.append(_sh_text(right - w_by + pad, y + 5.3 + i * LH, line, SIZE))
-        if r is not rows[-1]:
-            o_lines.append(_sh_line(x0, y + h, right, y + h))   # the last one is the frame's edge
-        y += h
-    bottom = y
-    for cx in (x0 + w_rev, x0 + w_rev + w_date, right - w_by):
-        o_lines.append(_sh_line(cx, top, cx, bottom))
-    o = ['<g style="%s">' % _THIN] + o_lines + ["</g>"]
-    o.append('<rect x="%s" y="%s" width="%s" height="%s" style="%s"/>' % (_sh_f(x0), _sh_f(top), _sh_f(width), _sh_f(bottom - top), _THICK))
-    hx = (x0 + pad, x0 + w_rev + pad, x0 + w_rev + w_date + pad, right - w_by + pad)
-    for x, h in zip(hx, headers):
-        o.append(_sh_text(x, top + 4.2, h, 2.4, ";font-weight:bold"))
-    return o + o_text
-
-
-def _group_attrs(svg, gid):
-    m = re.search(r'<g\b([^>]*\bid="%s"[^>]*?)\s*/?>' % gid, svg)
-    if not m:
-        return None
-    return dict(re.findall(r'data-([a-z]+)="([^"]*)"', m.group(1)))
-
-
-def _replace_group(svg, gid, inner):
-    """Puts `inner` into the empty or previously filled group `gid`. A filled group ends with
-    a </g><!--/gid--> marker, so the old content is found again on the next refresh even
-    though it contains nested groups."""
-    m = re.search(r'<g\b([^>]*\bid="%s"[^>]*?)\s*/>' % gid, svg)
-    if not m:
-        m = re.search(r'<g\b([^>]*\bid="%s"[^>]*)>.*?</g><!--/%s-->' % (gid, gid), svg, re.S)
-    if not m:
-        return svg
-    attrs = m.group(1).rstrip()
-    new = ('<g%s/>' % attrs) if not inner else ('<g%s>%s</g><!--/%s-->' % (attrs, "".join(inner), gid))
-    return svg[:m.start()] + new + svg[m.end():]
-
-
-def fill_sheet(svg, values, processes=None, revisions=None, process_headers=None,
-               revision_headers=None, logo_href=None, measure=None):
-    """Writes `values` ({"pdm_name": "Kostka", "pdm_label_name": "NAZWA", ...}) into the
-    matching freecad:editable texts and builds the tables and the logo into their groups.
-    Works on the EasyPDM template and on any custom template that uses the same names; what
-    a template does not have is simply skipped."""
-    measure = measure or approx_text_width
-
-    def fill(m):
-        name = m.group(2)
-        if name not in values:
-            return m.group(0)
-        return m.group(1) + "<tspan>%s</tspan>" % _sh_esc(values[name]) + m.group(4)
-
-    svg = re.sub(r'(<text\b[^>]*\bfreecad:editable="([^"]+)"[^>]*>)(.*?)(</text>)', fill, svg, flags=re.S)
-
-    a = _group_attrs(svg, "pdm_processes")
-    if a is not None:
-        inner = []
-        if processes:
-            inner = _processes_table(float(a.get("x", 0)), float(a.get("bottom", 0)), float(a.get("width", 180)),
-                                     processes, process_headers or ("No.", "PROCESS", "DESCRIPTION"), measure)
-        svg = _replace_group(svg, "pdm_processes", inner)
-    a = _group_attrs(svg, "pdm_revisions")
-    if a is not None:
-        inner = []
-        if revisions:
-            inner = _revisions_table(float(a.get("right", 0)), float(a.get("top", 0)), float(a.get("width", 160)),
-                                     revisions, revision_headers or ("REV.", "DATE", "DESCRIPTION", "BY"), measure)
-        svg = _replace_group(svg, "pdm_revisions", inner)
-    a = _group_attrs(svg, "pdm_logo")
-    if a is not None:
-        inner = []
-        if logo_href:
-            size, pad = float(a.get("size", 17)), 1.5
-            inner = ['<image x="%s" y="%s" width="%s" height="%s" preserveAspectRatio="xMidYMid meet" xlink:href="%s"/>'
-                     % (_sh_f(float(a.get("x", 0)) + pad), _sh_f(float(a.get("y", 0)) + pad), _sh_f(size - 2 * pad), _sh_f(size - 2 * pad), logo_href)]
-        svg = _replace_group(svg, "pdm_logo", inner)
-    return svg
-
-# --- FreeCAD side: refreshing the EasyPDM sheet on a document's TechDraw pages. Uses the
-# host macro's api_get / api_get_binary and FreeCAD's App; nothing here runs on import.
-
-def _sh_qt_measure():
-    """Text width from the real osifont metrics when Qt is available (inside FreeCAD's GUI),
-    so wrapping matches what TechDraw draws; approx_text_width otherwise."""
-    try:
-        try:
-            from PySide6 import QtGui as _QtGui
-        except ImportError:
-            try:
-                from PySide2 import QtGui as _QtGui
-            except ImportError:
-                from PySide import QtGui as _QtGui
-        font_path = os.path.join(App.getResourceDir(), "Mod", "TechDraw", "Resources", "fonts", "osifont-lgpl3fe.ttf")
-        families = []
-        if os.path.exists(font_path):
-            fid = _QtGui.QFontDatabase.addApplicationFont(font_path)
-            families = _QtGui.QFontDatabase.applicationFontFamilies(fid) if fid >= 0 else []
-        if not families:
-            return approx_text_width
-        font = _QtGui.QFont(families[0])
-        font.setPixelSize(100)
-        metrics = _QtGui.QFontMetricsF(font)
-        advance = getattr(metrics, "horizontalAdvance", None) or metrics.width
-        return lambda text, size: advance(text or "") * size / 100.0
-    except Exception:
-        return approx_text_width
-
-
-def _sh_local_date(iso):
-    """"2026-11-12T09:14:03.5Z" -> "2026-11-12" in the computer's own time zone."""
-    if not iso:
-        return ""
-    try:
-        s = re.sub(r"\.(\d{6})\d+", r".\1", iso.replace("Z", "+00:00"))
-        dt = _sh_datetime.fromisoformat(s)
-        if dt.tzinfo is not None:
-            dt = dt.astimezone()
-        return dt.strftime("%Y-%m-%d")
-    except Exception:
-        return iso[:10]
-
-
-def _sh_scale_text(scale):
-    try:
-        s = float(scale)
-    except Exception:
-        return "1:1"
-    if s <= 0:
-        return "1:1"
-    if s < 1:
-        return "1:%s" % ("%g" % round(1.0 / s, 3))
-    return "%s:1" % ("%g" % round(s, 3))
-
-
-def _sh_logo_href(tb):
-    company = tb.get("company") or {}
-    if not company.get("hasLogo"):
-        return None
-    try:
-        data = api_get_binary("/settings/company/logo")
-    except Exception:
-        return None
-    mime = "image/png" if data[:4] == b"\x89PNG" else "image/jpeg" if data[:2] == b"\xff\xd8" else None
-    if not mime:
-        return None
-    return "data:%s;base64,%s" % (mime, _sh_base64.b64encode(data).decode("ascii"))
-
-
-def sheet_values(tb, page_scale, sheet_no, sheet_count):
-    """Values for the pdm_* fields from GET /items/{id}/title-block."""
-    labels = tb.get("labels") or {}
-    v = {}
-    for field, (key, english) in SHEET_LABELS.items():
-        v["pdm_label_" + field] = (labels.get(key) or english).upper()
-    drawn = tb.get("drawnBy") or {}
-    approved = tb.get("approvedBy") or {}
-    company = tb.get("company") or {}
-    mass = tb.get("mass")
-    v.update({
-        "pdm_drawn_by": drawn.get("name") or "",
-        "pdm_drawn_date": _sh_local_date(drawn.get("at")),
-        "pdm_approved_by": approved.get("name") or "",
-        "pdm_approved_date": _sh_local_date(approved.get("at")),
-        "pdm_material": tb.get("material") or "",
-        "pdm_mass": ("%s kg" % mass) if mass else "",
-        "pdm_company": company.get("name") or "",
-        "pdm_name": tb.get("name") or "",
-        "pdm_name_translations": " \u00b7 ".join(
-            "%s: %s" % (x.get("languageCode"), x.get("name")) for x in tb.get("nameTranslations") or []),
-        "pdm_drawing_number": tb.get("drawingNumber") or "",
-        "pdm_revision": tb.get("revisionLabel") or "",
-        "pdm_scale": _sh_scale_text(page_scale),
-        "pdm_sheet": "%d / %d" % (sheet_no, sheet_count),
-    })
-    return v
-
-
-def sheet_tables(tb):
-    labels = tb.get("labels") or {}
-    lab = lambda k, d: (labels.get(k) or d).upper()
-    processes = []
-    for p in tb.get("processes") or []:
-        tr = p.get("translations") or []
-        processes.append({
-            "name": p.get("name") or "",
-            "description": p.get("description") or "",
-            "nameTr": ["%s: %s" % (x.get("languageCode"), x.get("name")) for x in tr if x.get("name")],
-            "descTr": ["%s: %s" % (x.get("languageCode"), x.get("description")) for x in tr if x.get("description")],
-        })
-    revisions = [{
-        "label": r.get("revisionLabel") or "",
-        "date": _sh_local_date(r.get("at")),
-        "description": r.get("description") or "",
-        "by": r.get("by") or "",
-    } for r in tb.get("revisions") or []]
-    return (processes, revisions,
-            (lab("processNo", "No."), lab("process", "Process"), lab("processDescription", "Description")),
-            (lab("revisionLetter", "Rev."), lab("revisionDate", "Date"), lab("revisionDescription", "Change description"), lab("revisionBy", "By")))
-
-
-def is_pdm_template(tpl):
-    try:
-        return tpl is not None and any(k.startswith("pdm_") for k in dict(tpl.EditableTexts))
-    except Exception:
-        return False
-
-
-def _sh_template_text(tpl):
-    for path in (getattr(tpl, "Template", ""), getattr(tpl, "PageResult", "")):
-        if path and os.path.exists(path):
-            with open(path, encoding="utf-8") as f:
-                return f.read()
-    return ""
-
-
-def _sh_write_sheet(doc, page, svg):
-    """A new file name on every refresh: FreeCAD reloads a template only when the path
-    changes. Older working copies of the same page are removed; the .FCStd keeps its own."""
-    d = os.path.join(App.getUserAppDataDir(), "EasyPDM", "sheets")
-    os.makedirs(d, exist_ok=True)
-    prefix = re.sub(r"[^A-Za-z0-9_-]+", "_", "%s_%s" % (doc.Name, page.Name))
-    for old in _sh_glob.glob(os.path.join(d, prefix + "_*.svg")):
-        try:
-            os.remove(old)
-        except OSError:
-            pass
-    path = os.path.join(d, "%s_%d.svg" % (prefix, int(_sh_time.time() * 1000)))
-    with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write(svg)
-    return path
-
-
-def _sh_refresh_page(doc, page, tb, sheet_no, sheet_count, logo_href, measure):
-    """Rebuilds one page's sheet; returns False when nothing changed (the template is then
-    left alone, so an unchanged document does not turn "modified")."""
-    tpl = page.Template
-    current = _sh_template_text(tpl) if tpl is not None else ""
-    own = (not current) or (SHEET_TITLE_PREFIX in current)
-    if own:
-        m = re.search(re.escape(SHEET_TITLE_PREFIX) + r" (\w+)", current or "")
-        base = build_base_sheet(m.group(1) if m and m.group(1) in SHEET_FORMATS else "A3")
-    else:
-        base = current
-    values = sheet_values(tb, getattr(page, "Scale", 1.0), sheet_no, sheet_count)
-    if not own:
-        values.pop("pdm_label_format", None)
-    processes, revisions, p_head, r_head = sheet_tables(tb)
-    svg = fill_sheet(base, values, processes, revisions, p_head, r_head, logo_href, measure)
-
-    old_texts = dict(tpl.EditableTexts) if tpl is not None else {}
-    if tpl is not None and svg == current and all(old_texts.get(k) == v for k, v in values.items() if k in old_texts):
-        return False
-    if tpl is None:
-        tpl = doc.addObject("TechDraw::DrawSVGTemplate", "EasyPDMTemplate")
-        page.Template = tpl
-    tpl.Template = _sh_write_sheet(doc, page, svg)
-    texts = dict(tpl.EditableTexts)
-    for k, val in old_texts.items():
-        if not k.startswith("pdm_") and k in texts:
-            texts[k] = val     # fields of a custom template keep what was typed into them
-    for k, val in values.items():
-        if k in texts:
-            texts[k] = val
-    tpl.EditableTexts = texts
-    return True
-
-
-def refresh_sheets(doc, item_id, ask_existing_page=None, drawn_by=True):
-    """Fills every TechDraw page of `doc` that uses the EasyPDM sheet (pdm_* fields) with the
-    item's title block data. When the document has pages but none with the sheet,
-    `ask_existing_page(page)` -- if given -- decides whether the sheet goes on the first of
-    them (its views stay). Never creates a page. Returns the pages that changed.
-
-    `drawn_by=False` (Upload) leaves DRAWN BY empty: it is whoever sends the revision for
-    review, and the server writes it into the PDF at that moment (DrawingStamp.cs) -- filled
-    in at upload it named whoever happened to export the drawing."""
-    pages = [o for o in doc.Objects if o.TypeId == "TechDraw::DrawPage"]
-    targets = [p for p in pages if is_pdm_template(p.Template)]
-    if not pages or (not targets and ask_existing_page is None):
-        return []
-    # Data first, changes after: a server without this endpoint (older than 0.8.1) fails
-    # here, before an ordinary page has had its template swapped for an empty one.
-    tb = api_get("/items/%s/title-block" % item_id)
-    if not drawn_by:
-        tb = dict(tb, drawnBy=None)
-    if not targets and ask_existing_page(pages[0]):
-        old = pages[0].Template
-        tpl = doc.addObject("TechDraw::DrawSVGTemplate", "EasyPDMTemplate")
-        pages[0].Template = tpl
-        if old is not None and not old.InList:
-            doc.removeObject(old.Name)
-        targets = [pages[0]]
-    if not targets:
-        return []
-    logo = _sh_logo_href(tb)
-    measure = _sh_qt_measure()
-    changed = [p for p in targets
-               if _sh_refresh_page(doc, p, tb, pages.index(p) + 1, len(pages), logo, measure)]
-    if changed:
-        doc.recompute()
-    return changed
-
-# ===== END SHARED =====
-
-
-def _match_lang(raw):
-    raw = (raw or "").strip().lower()
-    if not raw:
-        return None
-    if raw.startswith("pl") or "polish" in raw or "polski" in raw:
-        return "pl"
-    if raw.startswith("de") or "german" in raw or "deutsch" in raw:
-        return "de"
-    if raw.startswith("en") or "english" in raw:
-        return "en"
-    return None
-
-
-def _detect_language():
-    """Auto-wykrycie języka: najpierw własne ustawienie FreeCAD (Preferences -> General ->
-    Language) — bywa zapisane jako nazwa ("Polish"/"German") albo jako kod locale
-    ("pl"/"pl_PL"/"de_DE" — stąd dopasowanie i po nazwie, i po prefiksie kodu), a jeśli to
-    niejednoznaczne (pusty string albo coś spoza pl/en/de), sprawdzamy locale systemu
-    operacyjnego ($LANGUAGE/$LC_ALL/$LANG — na Linuksie zwykle "pl_PL.UTF-8"). Fallback na
-    angielski, jeśli nic nie pasuje albo odczyt się nie powiedzie."""
-    try:
-        raw = App.ParamGet("User parameter:BaseApp/Preferences/General").GetString("Language", "")
-    except Exception:
-        raw = ""
-    lang = _match_lang(raw)
-    if lang:
-        return lang
-    raw_os = os.environ.get("LANGUAGE") or os.environ.get("LC_ALL") or os.environ.get("LANG") or ""
-    return _match_lang(raw_os) or "en"
-
-
-LANG = _detect_language()
-
-
-TRANSLATIONS = {
-    "pl": {
-        "no_connection": "Brak połączenia z {url}: {reason}",
-        "login_failed_no_session": "Logowanie nie powiodło się — serwer nie zwrócił sesji.",
-        "pdm_title": "PDM",
-        "unnamed_fallback": "bez_nazwy",
-        "login_dialog_title": "Logowanie do PDM",
-        "api_address_label": "Adres API:",
-        "username_label": "Nazwa użytkownika:",
-        "password_label": "Hasło:",
-        "login_button": "Zaloguj",
-        "cancel_button": "Anuluj",
-        "assembly_update_note": "Pliki już będące w PDM w statusie \"W pracy\" zostaną zaktualizowane (plik CAD zastąpi tę samą rewizję).",
-        "update_step_checkbox": "Wyślij na nowo STEP (podgląd 3D) plików już będących w PDM",
-        "update_pdf_checkbox": "Wyślij na nowo PDF plików już będących w PDM",
-        "not_sent_suffix": " — {status}, nie zostanie wysłany",
-        "locked_not_sent": "Tych plików nie wyślemy — są w PDM ze statusem, który blokuje zmiany. Żeby je zaktualizować, utwórz nową rewizję albo zdejmij je ze sprawdzania:\n\n{lines}",
-        "yes_button": "Tak",
-        "no_button": "Nie",
-        "login_missing_fields": "Podaj nazwę użytkownika i hasło.",
-        "sheet_ask_existing_page": "Dokument ma stronę rysunku „{page}” bez arkusza EasyPDM.\n\nWstawić na nią arkusz EasyPDM z tabelką wypełnianą z PDM? Widoki zostają.",
-        "target_folder_dialog_title": "Wyślij do PDM",
-        "logged_in_as": "Zalogowano jako: {name}",
-        "logout_button": "Wyloguj",
-        "account_label": "Konto:",
-        "target_folder_hint": (
-            "Gdzie mają trafić lokalne kopie wysyłanych dokumentów (ten sam plik pod "
-            "nazwą PDM, zamiast oryginalnej)? To samo miejsce co folder pobierania w "
-            "EasyPDMDownload.FCMacro — warto ustawić jednakowo."
-        ),
-        "choose_target_folder_caption": "Wybierz folder docelowy",
-        "indicate_folder": "Wskaż folder.",
-        "cannot_use_folder": "Nie można użyć tego folderu: {error}",
-        "logged_out_message": "Wylogowano. Kolejne uruchomienie makra poprosi o ponowne zalogowanie.",
-        "new_revision_title": "Nowa rewizja",
-        "new_revision_body": (
-            'Ten element ma status "Wydany" — nie można do niego dogrywać plików.\n\n'
-            'Czy chcesz stworzyć nową rewizję (status zmieni się na "W pracy")?'
-        ),
-        "revision_comment_label": "Komentarz do rewizji (opcjonalnie):",
-        "revision_comment_placeholder": "Co zmieniło się w tej rewizji…",
-        "create_revision_button": "Stwórz rewizję",
-        "assembly_detected_title": "Wykryto złożenie",
-        "assembly_detected_body": (
-            "Ten dokument linkuje do {count} innych plików (części/pod-złożeń):\n\n"
-            "{summary}\n\n"
-            "Wysłać je automatycznie razem z tym dokumentem (najpierw części/pod-złożenia, "
-            "na końcu ten dokument)?\n\n"
-            "\"Nie\" wyśle TYLKO ten dokument, tak jak dotychczas — bez podelementów."
-        ),
-        "already_in_pdm_as": " -> JUŻ w PDM jako #{number} ({name})",
-        "already_linked_confirm": (
-            "Ten dokument wygląda jak już wcześniej wysłany element PDM nr {number} "
-            "({name}). Podpiąć bieżącą wersję jako nową rewizję/aktualizację TEGO "
-            "elementu?\n\n\"Nie\" otworzy zwykły formularz w przeglądarce (Nowy element / "
-            "Duplikuj / Dogranie do istniejącego)."
-        ),
-        "export_step_prompt": "Wyeksportować i wysłać model STEP (podgląd 3D)?",
-        "export_pdf_prompt": "Wyeksportować i wysłać plik PDF?",
-        "new_component_browser_prompt": (
-            "Nowy element w drzewie: {name}. Kliknij OK, aby otworzyć przeglądarkę i go "
-            "wprowadzić (może otworzyć się w tle — sprawdź pasek zadań)."
-        ),
-        "fetch_items_failed": "Nie udało się pobrać listy elementów: {error}",
-        "fetch_projects_failed": "Nie udało się pobrać listy projektów: {error}",
-        "upload_component_failed": "Nie udało się wysłać {file}: {error}",
-        "link_child_failed": "Utworzono {child}, ale nie udało się podpiąć go pod {parent}: {error}",
-        "open_browser_failed": "Nie udało się otworzyć przeglądarki: {error}",
-        "wait_timeout": "Upłynął czas oczekiwania.",
-        "wait_ticket_status": "EasyPDM: czekam na dane elementu uzupełniane w przeglądarce...",
-        "no_active_document": "Brak otwartego dokumentu.",
-        "document_not_saved": "Dokument nie jest jeszcze zapisany — wskaż, gdzie go zapisać.",
-        "save_failed": "Nie udało się zapisać dokumentu: {error}",
-        "final_save_failed": (
-            "Tych plików nie udało się zapisać lokalnie. Odwołania do nowych nazw są tylko "
-            "w otwartym dokumencie — zapisz je ręcznie (Ctrl+S):\n{lines}"
-        ),
-        "cancelled_upload": "Przerwano — anulowano wysyłkę.",
-        "nothing_sent": "Anulowano — nic nie zostało wysłane.",
-        "link_subitem_failed": "Nie udało się podpiąć jednego z podelementów pod główny element: {error}",
-        "local_renamed_line": (
-            "Lokalny plik zapisany pod nazwą PDM (Save As), stary plik pod oryginalną "
-            "nazwą pozostał nietknięty:\n{path}"
-        ),
-        "local_already_named_line": (
-            "Lokalny plik już był pod właściwą nazwą PDM — nic nie trzeba było przenosić:\n{path}"
-        ),
-        "status_revision_mismatch": (
-            "Status/rewizja elementu #{number} zostały już zmienione na "
-            "serwerze (rewizja {revision}, status 'w_pracy'), ale dogranie pliku się nie "
-            "powiodło: {error}\n\nElement w PDM ma teraz nową rewizję, lecz wciąż plik "
-            "poprzedniej wersji — popraw to ręcznie w aplikacji webowej (dograj plik "
-            "ponownie) albo spróbuj ponownie z tego makra."
-        ),
-        "upload_blocked_review": (
-            "Nie można wysłać — element #{number} ma status \"Sprawdzany\". Poczekaj, aż "
-            "recenzja się zakończy (element wróci do statusu \"W pracy\"), albo zmień "
-            "status ręcznie w aplikacji webowej."
-        ),
-        "status_label_sprawdzany": "Sprawdzany",
-        "status_label_wydany": "Wydany",
-        "locked_components_tail": (
-            "\n\nUwaga: {count} już podlinkowany(-e) komponent(y) w złożeniu ma "
-            "zablokowany status — NIE zostały zaktualizowane (drzewo złożenia nigdy nie "
-            "dosyła ponownie już-istniejących komponentów, ale te akurat są dodatkowo "
-            "zablokowane statusem, więc gdybyś je zmieniał lokalnie, wyślij je osobno po "
-            "cofnięciu statusu do \"W pracy\"):\n{lines}"
-        ),
-        "stale_children_confirm": (
-            "{count} podelement(ów) tego elementu istnieje w PDM, ale nie ma ich już w "
-            "lokalnej strukturze złożenia (usunięte z drzewa FreeCAD od poprzedniej "
-            "wysyłki):\n{lines}\n\nUsunąć te powiązania z PDM? (Same elementy NIE zostaną "
-            "skasowane, tylko ich podpięcie pod to złożenie.)"
-        ),
-    },
-    "en": {
-        "no_connection": "Could not connect to {url}: {reason}",
-        "login_failed_no_session": "Login failed — the server did not return a session.",
-        "pdm_title": "PDM",
-        "unnamed_fallback": "unnamed",
-        "login_dialog_title": "Log in to PDM",
-        "api_address_label": "API address:",
-        "username_label": "Username:",
-        "password_label": "Password:",
-        "login_button": "Log in",
-        "cancel_button": "Cancel",
-        "assembly_update_note": "Files already in the PDM with status \"In work\" will be updated (their CAD file replaces the same revision).",
-        "update_step_checkbox": "Upload a fresh STEP (3D preview) for files already in the PDM",
-        "update_pdf_checkbox": "Upload a fresh PDF for files already in the PDM",
-        "not_sent_suffix": " — {status}, will not be sent",
-        "locked_not_sent": "These files will not be sent — they are in the PDM with a status that blocks changes. To update them, create a new revision or take them out of review:\n\n{lines}",
-        "yes_button": "Yes",
-        "no_button": "No",
-        "login_missing_fields": "Enter your username and password.",
-        "sheet_ask_existing_page": "The document has the drawing page \"{page}\" without the EasyPDM sheet.\n\nPut the EasyPDM sheet on it, with the title block filled in from PDM? Its views stay.",
-        "target_folder_dialog_title": "Send to PDM",
-        "logged_in_as": "Logged in as: {name}",
-        "logout_button": "Log out",
-        "account_label": "Account:",
-        "target_folder_hint": (
-            "Where should local copies of uploaded documents go (the same file under the "
-            "PDM name, instead of the original)? This is the same location as the download "
-            "folder in EasyPDMDownload.FCMacro — it's a good idea to set them the same."
-        ),
-        "choose_target_folder_caption": "Choose target folder",
-        "indicate_folder": "Choose a folder.",
-        "cannot_use_folder": "Cannot use this folder: {error}",
-        "logged_out_message": "Logged out. The next time you run the macro, it will ask you to log in again.",
-        "new_revision_title": "New revision",
-        "new_revision_body": (
-            'This item has the status "Released" — files cannot be added to it.\n\n'
-            'Do you want to create a new revision (the status will change to "In progress")?'
-        ),
-        "revision_comment_label": "Revision comment (optional):",
-        "revision_comment_placeholder": "What changed in this revision…",
-        "create_revision_button": "Create revision",
-        "assembly_detected_title": "Assembly detected",
-        "assembly_detected_body": (
-            "This document links to {count} other files (parts/sub-assemblies):\n\n"
-            "{summary}\n\n"
-            "Send them automatically together with this document (parts/sub-assemblies "
-            "first, this document last)?\n\n"
-            "\"No\" will send ONLY this document, as before — without sub-items."
-        ),
-        "already_in_pdm_as": " -> ALREADY in PDM as #{number} ({name})",
-        "already_linked_confirm": (
-            "This document looks like an already-uploaded PDM item #{number} ({name}). "
-            "Attach the current version as a new revision/update of THIS item?\n\n"
-            "\"No\" opens the regular browser form (New item / Duplicate / Attach to "
-            "existing)."
-        ),
-        "export_step_prompt": "Export and upload STEP model (3D preview)?",
-        "export_pdf_prompt": "Export and upload a PDF file?",
-        "new_component_browser_prompt": (
-            "New component in the tree: {name}. Click OK to open the browser and fill it "
-            "in (it may open in the background — check the taskbar)."
-        ),
-        "fetch_items_failed": "Failed to fetch the list of items: {error}",
-        "fetch_projects_failed": "Failed to fetch the list of projects: {error}",
-        "upload_component_failed": "Failed to send {file}: {error}",
-        "link_child_failed": "Created {child}, but failed to link it under {parent}: {error}",
-        "open_browser_failed": "Failed to open the browser: {error}",
-        "wait_timeout": "The waiting time has expired.",
-        "wait_ticket_status": "EasyPDM: waiting for the item details to be filled in in the browser...",
-        "no_active_document": "No document is open.",
-        "document_not_saved": "The document has not been saved yet — choose where to save it.",
-        "save_failed": "Failed to save the document: {error}",
-        "final_save_failed": (
-            "These files could not be saved locally. References to the new names exist only "
-            "in the open document — save them by hand (Ctrl+S):\n{lines}"
-        ),
-        "cancelled_upload": "Cancelled — the upload was aborted.",
-        "nothing_sent": "Cancelled — nothing was sent.",
-        "link_subitem_failed": "Failed to link one of the sub-items under the main item: {error}",
-        "local_renamed_line": (
-            "Local file saved under the PDM name (Save As); the old file under the "
-            "original name was left untouched:\n{path}"
-        ),
-        "local_already_named_line": (
-            "The local file was already under the correct PDM name — nothing needed to be moved:\n{path}"
-        ),
-        "status_revision_mismatch": (
-            "The status/revision of item #{number} has already been changed on the "
-            "server (revision {revision}, status 'w_pracy'), but uploading the file failed: "
-            "{error}\n\nThe item in PDM now has a new revision, but still has the file from "
-            "the previous version — fix this manually in the web application (upload the "
-            "file again) or try again from this macro."
-        ),
-        "upload_blocked_review": (
-            "Cannot upload — item #{number} has status \"Under review\". Wait until the "
-            "review finishes (the item returns to \"In progress\"), or change the status "
-            "manually in the web application."
-        ),
-        "status_label_sprawdzany": "Under review",
-        "status_label_wydany": "Released",
-        "locked_components_tail": (
-            "\n\nNote: {count} already-linked component(s) in the assembly have a locked "
-            "status — they were NOT updated (the assembly tree never re-sends "
-            "already-existing components, but these are additionally locked by status, "
-            "so if you changed them locally, upload them separately after moving the "
-            "status back to \"In progress\"):\n{lines}"
-        ),
-        "stale_children_confirm": (
-            "{count} sub-item(s) of this item exist in PDM, but are no longer in the "
-            "local assembly structure (removed from the FreeCAD tree since the last "
-            "upload):\n{lines}\n\nRemove these links from PDM? (The items themselves will "
-            "NOT be deleted, only their attachment under this assembly.)"
-        ),
-    },
-    "de": {
-        "no_connection": "Keine Verbindung zu {url}: {reason}",
-        "login_failed_no_session": "Anmeldung fehlgeschlagen — der Server hat keine Sitzung zurückgegeben.",
-        "pdm_title": "PDM",
-        "unnamed_fallback": "unbenannt",
-        "login_dialog_title": "Anmeldung bei PDM",
-        "api_address_label": "API-Adresse:",
-        "username_label": "Benutzername:",
-        "password_label": "Passwort:",
-        "login_button": "Anmelden",
-        "cancel_button": "Abbrechen",
-        "assembly_update_note": "Dateien, die bereits im PDM mit dem Status \"In Arbeit\" sind, werden aktualisiert (ihre CAD-Datei ersetzt dieselbe Revision).",
-        "update_step_checkbox": "Für Dateien, die bereits im PDM sind, STEP (3D-Vorschau) neu hochladen",
-        "update_pdf_checkbox": "Für Dateien, die bereits im PDM sind, PDF neu hochladen",
-        "not_sent_suffix": " — {status}, wird nicht gesendet",
-        "locked_not_sent": "Diese Dateien werden nicht gesendet — sie sind im PDM mit einem Status, der Änderungen sperrt. Um sie zu aktualisieren, eine neue Revision anlegen oder sie aus der Prüfung nehmen:\n\n{lines}",
-        "yes_button": "Ja",
-        "no_button": "Nein",
-        "login_missing_fields": "Geben Sie Benutzername und Passwort ein.",
-        "sheet_ask_existing_page": "Das Dokument hat die Zeichnungsseite „{page}“ ohne EasyPDM-Blatt.\n\nDas EasyPDM-Blatt mit aus PDM ausgefülltem Schriftfeld darauf setzen? Die Ansichten bleiben.",
-        "target_folder_dialog_title": "An PDM senden",
-        "logged_in_as": "Angemeldet als: {name}",
-        "logout_button": "Abmelden",
-        "account_label": "Konto:",
-        "target_folder_hint": (
-            "Wohin sollen lokale Kopien der hochgeladenen Dokumente abgelegt werden "
-            "(dieselbe Datei unter dem PDM-Namen statt des Originals)? Das ist derselbe "
-            "Ort wie der Download-Ordner in EasyPDMDownload.FCMacro — es empfiehlt sich, "
-            "beide gleich einzustellen."
-        ),
-        "choose_target_folder_caption": "Zielordner auswählen",
-        "indicate_folder": "Wählen Sie einen Ordner.",
-        "cannot_use_folder": "Dieser Ordner kann nicht verwendet werden: {error}",
-        "logged_out_message": "Abgemeldet. Beim nächsten Ausführen des Makros werden Sie erneut zur Anmeldung aufgefordert.",
-        "new_revision_title": "Neue Revision",
-        "new_revision_body": (
-            'Dieses Element hat den Status "Freigegeben" — es können keine Dateien '
-            'hinzugefügt werden.\n\nMöchten Sie eine neue Revision erstellen (der Status '
-            'wechselt zu "In Bearbeitung")?'
-        ),
-        "revision_comment_label": "Revisionskommentar (optional):",
-        "revision_comment_placeholder": "Was hat sich in dieser Revision geändert…",
-        "create_revision_button": "Revision erstellen",
-        "assembly_detected_title": "Baugruppe erkannt",
-        "assembly_detected_body": (
-            "Dieses Dokument verknüpft mit {count} anderen Dateien (Teile/Unterbaugruppen):\n\n"
-            "{summary}\n\n"
-            "Sollen sie automatisch zusammen mit diesem Dokument gesendet werden (zuerst "
-            "Teile/Unterbaugruppen, zuletzt dieses Dokument)?\n\n"
-            "\"Nein\" sendet NUR dieses Dokument, wie bisher — ohne Unterelemente."
-        ),
-        "already_in_pdm_as": " -> BEREITS in PDM als #{number} ({name})",
-        "already_linked_confirm": (
-            "Dieses Dokument sieht aus wie das bereits hochgeladene PDM-Element Nr. "
-            "{number} ({name}). Die aktuelle Version als neue Revision/Aktualisierung "
-            "DIESES Elements anhängen?\n\n\"Nein\" öffnet das normale Browser-Formular "
-            "(Neues Element / Duplizieren / Vorhandenem anhängen)."
-        ),
-        "export_step_prompt": "STEP-Modell exportieren und hochladen (3D-Vorschau)?",
-        "export_pdf_prompt": "PDF-Datei exportieren und hochladen?",
-        "new_component_browser_prompt": (
-            "Neue Komponente im Baum: {name}. Klicken Sie OK, um den Browser zu öffnen "
-            "und sie einzugeben (er kann im Hintergrund geöffnet werden — prüfen Sie die "
-            "Taskleiste)."
-        ),
-        "fetch_items_failed": "Die Elementliste konnte nicht abgerufen werden: {error}",
-        "fetch_projects_failed": "Die Projektliste konnte nicht abgerufen werden: {error}",
-        "upload_component_failed": "{file} konnte nicht gesendet werden: {error}",
-        "link_child_failed": "{child} wurde erstellt, konnte aber nicht unter {parent} verknüpft werden: {error}",
-        "open_browser_failed": "Der Browser konnte nicht geöffnet werden: {error}",
-        "wait_timeout": "Die Wartezeit ist abgelaufen.",
-        "wait_ticket_status": "EasyPDM: warte auf die im Browser einzutragenden Elementdaten...",
-        "no_active_document": "Kein Dokument geöffnet.",
-        "document_not_saved": "Das Dokument wurde noch nicht gespeichert — wählen Sie einen Speicherort.",
-        "save_failed": "Das Dokument konnte nicht gespeichert werden: {error}",
-        "final_save_failed": (
-            "Diese Dateien konnten lokal nicht gespeichert werden. Verweise auf die neuen Namen gibt es nur "
-            "im geöffneten Dokument — bitte von Hand speichern (Strg+S):\n{lines}"
-        ),
-        "cancelled_upload": "Abgebrochen — der Upload wurde abgebrochen.",
-        "nothing_sent": "Abgebrochen — es wurde nichts gesendet.",
-        "link_subitem_failed": "Eines der Unterelemente konnte nicht unter dem Hauptelement verknüpft werden: {error}",
-        "local_renamed_line": (
-            "Lokale Datei unter dem PDM-Namen gespeichert (Speichern unter); die alte "
-            "Datei unter dem ursprünglichen Namen blieb unverändert:\n{path}"
-        ),
-        "local_already_named_line": (
-            "Die lokale Datei trug bereits den richtigen PDM-Namen — es musste nichts verschoben werden:\n{path}"
-        ),
-        "status_revision_mismatch": (
-            "Status/Revision von Element #{number} wurden bereits auf dem Server geändert "
-            "(Revision {revision}, Status 'w_pracy'), aber das Hochladen der Datei ist "
-            "fehlgeschlagen: {error}\n\nDas Element in PDM hat jetzt eine neue Revision, "
-            "aber immer noch die Datei der vorherigen Version — korrigieren Sie dies "
-            "manuell in der Webanwendung (Datei erneut hochladen) oder versuchen Sie es "
-            "erneut mit diesem Makro."
-        ),
-        "upload_blocked_review": (
-            "Hochladen nicht möglich — Element #{number} hat den Status \"In Prüfung\". "
-            "Warten Sie, bis die Prüfung abgeschlossen ist (das Element kehrt zu \"In "
-            "Bearbeitung\" zurück), oder ändern Sie den Status manuell in der "
-            "Web-Anwendung."
-        ),
-        "status_label_sprawdzany": "In Prüfung",
-        "status_label_wydany": "Freigegeben",
-        "locked_components_tail": (
-            "\n\nHinweis: {count} bereits verknüpfte Komponente(n) in der Baugruppe haben "
-            "einen gesperrten Status — sie wurden NICHT aktualisiert (der Baugruppenbaum "
-            "sendet bereits vorhandene Komponenten nie erneut, aber diese sind zusätzlich "
-            "durch ihren Status gesperrt — falls Sie sie lokal geändert haben, laden Sie "
-            "sie separat hoch, nachdem der Status wieder auf \"In Bearbeitung\" gesetzt "
-            "wurde):\n{lines}"
-        ),
-        "stale_children_confirm": (
-            "{count} Unterelement(e) dieses Elements existieren im PDM, sind aber nicht "
-            "mehr in der lokalen Baugruppenstruktur (seit dem letzten Hochladen aus dem "
-            "FreeCAD-Baum entfernt):\n{lines}\n\nDiese Verknüpfungen aus dem PDM entfernen? "
-            "(Die Elemente selbst werden NICHT gelöscht, nur ihre Zuordnung zu dieser "
-            "Baugruppe.)"
-        ),
-    },
-}
-
-
-def t(key, **kwargs):
-    text = TRANSLATIONS.get(LANG, TRANSLATIONS["en"]).get(key, TRANSLATIONS["en"].get(key, key))
-    return text.format(**kwargs) if kwargs else text
-
-
-PARAM_GROUP = "User parameter:BaseApp/EasyPDM"
-DEFAULT_BASE_URL = "http://localhost:5000/api"
-SESSION_COOKIE_NAME = "pdm_session"
 # Klucz pozycji dokumentu nadrzędnego na liście postępu. Stała, bo odhaczany jest w innym
 # miejscu (koniec run()) niż dodawany do listy (process_assembly_tree), a literał w dwóch
 # miejscach rozjechałby się przy pierwszej zmianie.
@@ -1211,18 +225,10 @@ TOP_DOCUMENT_PROGRESS_KEY = "__top__"
 _RUN = {"id": None, "tab_opened": False, "cancelled": False, "top_preset": None, "locked_shown": False,
         "progress_started": False}
 
-
 def run_id():
     if _RUN["id"] is None:
         _RUN["id"] = str(uuid.uuid4())
     return _RUN["id"]
-
-
-class AuthError(RuntimeError):
-    """Brak sesji albo sesja wygasła/została unieważniona — trzeba się (ponownie) zalogować.
-    Odróżniona od zwykłego RuntimeError, żeby ensure_logged_in() wiedziało kiedy pokazać
-    okno logowania, zamiast tylko wyświetlić czerwony komunikat błędu."""
-    pass
 
 # Dopasowuje własną konwencję nazewnictwa "numer (nazwa).REWIZJA" (nadawaną plikom/etykietom
 # przez to samo makro po wysłaniu do PDM) — np. "76 (RewizjaTest).C". Jeśli dokument został
@@ -1239,12 +245,10 @@ class AuthError(RuntimeError):
 # jednak male, bo "C0005.A" to juz konwencja PDM, a nie przypadkowa nazwa uzytkownika.
 _REVISION_NAME_PATTERN = re.compile(r"^(?P<prefix>[A-Za-z]*)(?P<number>\d+)\s*(?:\((?P<name>.+)\))?(?:\.[A-Za-z]+)?$")
 
-
 def _record_key(text):
     """Nazwa rekordu sprowadzona do postaci porównywalnej: bez spacji (stara konwencja
     "5 (Wspornik)" i nowa "5(Wspornik)" to ten sam rekord) i bez wielkości liter."""
     return re.sub(r"\s+", "", text or "").lower()
-
 
 def label_matches_item(label, item):
     """Czy etykieta dokumentu to DOKŁADNIE nazwa rekordu tego elementu (z ewentualną literą
@@ -1259,7 +263,6 @@ def label_matches_item(label, item):
     base = re.sub(r"\.[A-Za-z]+$", "", label or "")
     return _record_key(base) == _record_key(record_name_text(item))
 
-
 def record_name_text(item, fallback_name=""):
     """Pelna NAZWA REKORDU tak, jak ma wygladac w nazwie pliku -- gotowa z serwera
     (recordName: prefiks rodzaju, zera wiodace i -- zaleznie od ustawienia zamrozonego na
@@ -1271,100 +274,6 @@ def record_name_text(item, fallback_name=""):
     name = fallback_name or item.get("fileName", "") or item.get("name", "")
     number = item.get("itemNumberLabel") or item.get("itemNumber", "")
     return "%s(%s)" % (number, name)
-
-
-def get_base_url():
-    return App.ParamGet(PARAM_GROUP).GetString("ApiBaseUrl", DEFAULT_BASE_URL).rstrip("/")
-
-
-def set_base_url(url):
-    App.ParamGet(PARAM_GROUP).SetString("ApiBaseUrl", url.rstrip("/"))
-
-
-def get_session_token():
-    return App.ParamGet(PARAM_GROUP).GetString("SessionToken", "") or None
-
-
-def set_session_token(token):
-    App.ParamGet(PARAM_GROUP).SetString("SessionToken", token or "")
-
-
-def get_saved_username():
-    return App.ParamGet(PARAM_GROUP).GetString("SavedDisplayName", "") or None
-
-
-def set_saved_username(name):
-    App.ParamGet(PARAM_GROUP).SetString("SavedDisplayName", name or "")
-
-
-def get_download_folder():
-    """Ostatnio użyty folder docelowy — WSPÓLNA preferencja z EasyPDMDownload.FCMacro
-    (ten sam klucz w tej samej grupie), więc oba makra mogą celować w to samo miejsce:
-    pobrane pliki i lokalne kopie (Save As) wysyłanych dokumentów lądują razem."""
-    folder = App.ParamGet(PARAM_GROUP).GetString("DownloadFolder", "")
-    return folder or None
-
-
-def set_download_folder(folder):
-    App.ParamGet(PARAM_GROUP).SetString("DownloadFolder", folder or "")
-
-
-def _auth_headers():
-    token = get_session_token()
-    return {"Cookie": f"{SESSION_COOKIE_NAME}={token}"} if token else {}
-
-
-def _read_error_body(http_error):
-    try:
-        return http_error.read().decode("utf-8") or str(http_error)
-    except Exception:
-        return str(http_error)
-
-
-def _raise_for_http_error(e):
-    if e.code == 401:
-        raise AuthError(_read_error_body(e))
-    raise RuntimeError(_read_error_body(e))
-
-
-def api_get(path):
-    req = request.Request(get_base_url() + path, method="GET", headers=_auth_headers())
-    try:
-        with request.urlopen(req, timeout=10) as resp:
-            body = resp.read().decode("utf-8")
-            return json.loads(body) if body else None
-    except error.HTTPError as e:
-        _raise_for_http_error(e)
-    except error.URLError as e:
-        raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
-
-
-
-def api_get_binary(path):
-    """Like api_get, but returns the raw bytes (the company logo for the drawing sheet)."""
-    req = request.Request(get_base_url() + path, method="GET", headers=_auth_headers())
-    try:
-        with request.urlopen(req, timeout=60) as resp:
-            return resp.read()
-    except error.HTTPError as e:
-        _raise_for_http_error(e)
-    except error.URLError as e:
-        raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
-
-def api_post_json(path, payload):
-    data = json.dumps(payload).encode("utf-8")
-    headers = {"Content-Type": "application/json"}
-    headers.update(_auth_headers())
-    req = request.Request(get_base_url() + path, data=data, method="POST", headers=headers)
-    try:
-        with request.urlopen(req, timeout=15) as resp:
-            body = resp.read().decode("utf-8")
-            return json.loads(body) if body else None
-    except error.HTTPError as e:
-        _raise_for_http_error(e)
-    except error.URLError as e:
-        raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
-
 
 def api_upload_file(path, file_path, field_name="file", override_filename=None, extra_fields=None):
     boundary = f"----EasyPDMUploadBoundary{uuid.uuid4().hex}"
@@ -1398,7 +307,6 @@ def api_upload_file(path, file_path, field_name="file", override_filename=None, 
     except error.URLError as e:
         raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
 
-
 def api_patch_json(path, payload):
     data = json.dumps(payload).encode("utf-8")
     headers = {"Content-Type": "application/json"}
@@ -1413,7 +321,6 @@ def api_patch_json(path, payload):
     except error.URLError as e:
         raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
 
-
 def api_delete(path):
     req = request.Request(get_base_url() + path, method="DELETE", headers=_auth_headers())
     try:
@@ -1424,7 +331,6 @@ def api_delete(path):
         _raise_for_http_error(e)
     except error.URLError as e:
         raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
-
 
 # ============================================================================
 # Postęp wysyłki/pobierania pokazywany w aplikacji webowej jako lista plików odhaczana w
@@ -1447,7 +353,6 @@ def _progress_send(method, path, payload):
     except Exception:
         pass
 
-
 def progress_start(kind, entries, edges=None):
     """entries: lista par (klucz, etykieta). Zgłaszana w CAŁOŚCI, zanim cokolwiek poleci —
     bez pełnej listy od początku pasek postępu kłamałby ("3 z 3" zamieniałoby się w "3 z 9",
@@ -1466,12 +371,10 @@ def progress_start(kind, entries, edges=None):
     _progress_send("PUT", "/progress", payload)
     _RUN["progress_started"] = True
 
-
 def progress_mark(key, status):
     """status: "active" | "done" | "failed" | "skipped" """
     if key:
         _progress_send("PATCH", "/progress", {"key": key, "status": status})
-
 
 def transfer_cancelled():
     """Czy użytkownik kliknął „Anuluj" w panelu postępu w przeglądarce.
@@ -1495,125 +398,12 @@ def transfer_cancelled():
             pass
     return _RUN["cancelled"]
 
-
 def progress_finish():
     _progress_send("POST", "/progress/finish", {})
-
 
 def progress_label_for(path):
     """Sama nazwa pliku z rozszerzeniem — pełna ścieżka nie mieści się w panelu i nic nie wnosi."""
     return os.path.basename(path) if path else "(bez nazwy)"
-
-
-def api_login(username, password):
-    """Loguje się (POST /api/auth/login) i zapisuje token sesji w preferencjach FreeCAD —
-    ten sam mechanizm co ApiBaseUrl, więc logowanie przetrwa restart FreeCAD, dopóki sesja
-    jest ważna po stronie serwera (30 dni, tak samo jak w aplikacji webowej). Zwraca dict
-    użytkownika ({"username", "displayName", "role", ...}, tak jak POST /api/auth/login)."""
-    # Logowanie makra (POST /api/auth/macro-login) daje osobny token makra — widoczny i
-    # odwoływalny w Ustawienia -> Użytkownicy — zamiast sesji przeglądarki. Odpowiedź ma ten sam
-    # kształt co /auth/login, więc reszta działa bez zmian. Serwer sprzed 0.8 nie zna tej ścieżki
-    # (404) — wtedy zwykłe logowanie, jak dotąd.
-    data = json.dumps({"username": username, "password": password, "client": "FreeCAD Upload"}).encode("utf-8")
-
-    def _post_login(path):
-        req = request.Request(
-            get_base_url() + path, data=data, method="POST",
-            headers={"Content-Type": "application/json"},
-        )
-        with request.urlopen(req, timeout=10) as resp:
-            raw = resp.read().decode("utf-8")
-            return (json.loads(raw) if raw else {}), resp.headers.get("Set-Cookie", "")
-
-    try:
-        try:
-            user, set_cookie_header = _post_login("/auth/macro-login")
-        except error.HTTPError as e:
-            if e.code != 404:
-                raise
-            user, set_cookie_header = _post_login("/auth/login")
-    except error.HTTPError as e:
-        raise RuntimeError(_read_error_body(e))
-    except error.URLError as e:
-        raise RuntimeError(t("no_connection", url=get_base_url(), reason=e.reason))
-
-    # Token najpierw z treści odpowiedzi (pole "sessionToken" — także dla tokenu makra), potem
-    # z ciasteczka, jak dotąd.
-    token = user.get("sessionToken") or None
-    for part in ([] if token else set_cookie_header.split(";")):
-        part = part.strip()
-        if part.startswith(f"{SESSION_COOKIE_NAME}="):
-            token = part[len(SESSION_COOKIE_NAME) + 1:]
-            break
-    if not token:
-        raise RuntimeError(t("login_failed_no_session"))
-
-    set_session_token(token)
-    set_saved_username(user.get("displayName") or user.get("username") or username)
-    return user
-
-
-def api_logout():
-    """Unieważnia sesję po stronie serwera (POST /api/auth/logout) i zawsze czyści też
-    lokalnie zapisany token — nawet jeśli wywołanie się nie powiedzie (np. brak połączenia),
-    użytkownik i tak przestaje być "zalogowany" z punktu widzenia tego makra, więc kolejne
-    uruchomienie poprosi o ponowne logowanie."""
-    token = get_session_token()
-    if token:
-        req = request.Request(
-            get_base_url() + "/auth/logout", method="POST", headers=_auth_headers()
-        )
-        try:
-            request.urlopen(req, timeout=10)
-        except Exception:
-            pass
-    set_session_token(None)
-    set_saved_username(None)
-
-
-def ensure_logged_in():
-    """Sprawdza, czy zapisana sesja jest jeszcze ważna (GET /api/auth/me); jeśli jej nie ma
-    albo wygasła/została unieważniona, pokazuje okno logowania. Zwraca True, jeśli po
-    wywołaniu tej funkcji jest aktywna sesja (można kontynuować), False jeśli użytkownik
-    anulował logowanie."""
-    if get_session_token():
-        try:
-            me = api_get("/auth/me")
-            # Odświeżamy zapisaną nazwę z /auth/me — bez tego, jeśli token pochodzi z sesji
-            # zapisanej wcześniej BEZ przechodzenia przez api_login() w TEJ instalacji (np.
-            # ustawiony ręcznie, albo zapisany przez starszą wersję makra), SavedDisplayName
-            # zostawałoby puste na zawsze, mimo w pełni ważnej sesji — okno pokazywałoby
-            # "Zalogowano jako: ?".
-            if me:
-                set_saved_username(me.get("displayName") or me.get("username"))
-            return True
-        except AuthError:
-            set_session_token(None)  # token wygasł/nieważny — nie próbuj go już więcej
-        except Exception:
-            # Np. brak połączenia — nie blokujemy logowaniem na etapie samego sprawdzenia,
-            # błąd i tak wypłynie czytelnie przy pierwszym realnym wywołaniu API.
-            return True
-
-    dlg = LoginDialog()
-    return dlg.exec() == QtWidgets.QDialog.Accepted
-
-
-def sanitize_filename(name):
-    cleaned = re.sub(r'[\\/:*?"<>|]+', "_", name).strip()
-    return cleaned or t("unnamed_fallback")
-
-
-def revision_label(n):
-    """Rewizje jako wielkie litery zamiast cyfr: 1->A, 2->B, ..., 26->Z, 27->AA...
-    (jak numeracja kolumn arkusza) — sama liczba w bazie (revisionNumber) się nie zmienia.
-    Ta sama konwersja jest po stronie frontu w api/types.ts (revisionLabel)."""
-    n = int(n)
-    label = ""
-    while n > 0:
-        n, remainder = divmod(n - 1, 26)
-        label = chr(65 + remainder) + label
-    return label or "A"
-
 
 def _document_size(doc):
     """Rozmiar pliku dokumentu na dysku w bajtach, albo None gdy dokument nie był jeszcze
@@ -1624,7 +414,6 @@ def _document_size(doc):
         return os.path.getsize(path) if path and os.path.exists(path) else None
     except Exception:
         return None
-
 
 def _cad_item_type(doc):
     """"assembly", jeśli dokument linkuje (App::Link) do innych ZAPISANYCH plików, inaczej "part".
@@ -1641,147 +430,6 @@ def _cad_item_type(doc):
         return "assembly" if _iter_external_link_targets(doc) else "part"
     except Exception:
         return ""
-
-
-def open_in_browser(url):
-    """Otwiera adres w przeglądarce tak, żeby wyszła NA WIERZCH.
-
-    Dotąd było to `webbrowser.open`, który uruchamia po prostu `xdg-open`. Pod Wayland nowy
-    proces dostaje fokus tylko wtedy, gdy uruchamiający przekaże mu token aktywacji
-    (xdg-activation) — a `webbrowser` żadnego nie przekazuje. KDE otwierało więc kartę w tle
-    i jedynie podświetlało przeglądarkę na pasku zadań; trzeba było ją wyciągać ręcznie
-    (zgłoszone z praktyki, KDE/Wayland).
-
-    `QDesktopServices.openUrl` robi to samo, ale przez Qt, który od wersji 6.6 prosi
-    kompozytor o token w imieniu FreeCAD-a i przekazuje go dalej. Token jest ważny, bo
-    w tej chwili fokus ma FreeCAD — użytkownik właśnie uruchomił w nim makro.
-
-    `webbrowser.open` zostaje jako zapas: gdy Qt nie ma tej funkcji albo odmówi (stare
-    FreeCAD, brak środowiska graficznego), zachowanie jest dokładnie takie jak dotąd."""
-    try:
-        try:
-            from PySide6 import QtGui
-        except ImportError:
-            try:
-                from PySide2 import QtGui
-            except ImportError:
-                from PySide import QtGui
-        if QtGui.QDesktopServices.openUrl(QtCore.QUrl(url)):
-            return
-    except Exception:
-        pass
-    webbrowser.open(url)
-
-
-# Pełny <title> aplikacji (EasyPDM.Web/index.html — musi się z nim zgadzać co do znaku).
-# Okno przeglądarki dopasowujemy po POCZĄTKU
-# tytułu, bo przeglądarki doklejają swoją nazwę na końcu. NIE po samym "EasyPDM": u autora
-# okno Shotcuta miało w tytule "EasyPDM2.mlt", więc takie dopasowanie wyciągnęłoby na
-# wierzch montaż wideo zamiast przeglądarki (wyłapane sondą na żywej sesji KDE).
-APP_WINDOW_TITLE = "EasyPDM — CAD item browser"
-
-# Skrypt dla KWin. Szuka zwykłego okna, którego tytuł zaczyna się od tytułu aplikacji, i
-# aktywuje je. Plasma 6 ma windowList/activeWindow, Plasma 5 clientList/activeClient.
-_KWIN_RAISE_SCRIPT = """
-const wins = workspace.windowList ? workspace.windowList() : workspace.clientList();
-for (const w of wins) {
-    if (w.normalWindow && (%(match)s)) {
-        if (workspace.activeWindow !== undefined) workspace.activeWindow = w;
-        else workspace.activeClient = w;
-        break;
-    }
-}
-"""
-
-# Okno FreeCAD-a: najpierw po numerze procesu, a gdy nie pasuje (FreeCAD z Flatpaka ma w
-# piaskownicy inny pid niż ten, który widzi KWin) -- po klasie okna. Kopia z
-# EasyPDMDownload.FCMacro.
-_KWIN_FREECAD_MATCH = (
-    "w.pid === %(pid)d || !wins.some(function (x) { return x.normalWindow && x.pid === %(pid)d; })"
-    " && (w.resourceClass || \"\").toLowerCase().indexOf(\"freecad\") >= 0"
-)
-
-
-def _raise_via_kwin(match_js=None):
-    """Wyciąga okno przeglądarki na wierzch przez KWin — działa na KDE, także pod Wayland.
-
-    Pod Wayland żadna aplikacja nie może sama aktywować okna innej. Może to jednak zrobić
-    kompozytor, a KWin przyjmuje skrypty przez DBus (org.kde.KWin /Scripting) — tak samo
-    działa `kdotool`. Skrypt jest zapisywany do pliku tymczasowego, wczytywany, uruchamiany i
-    od razu zdejmowany.
-
-    Potrzebne, bo token aktywacji (zob. open_in_browser) pomaga tylko przeglądarce
-    URUCHAMIANEJ od zera. Gdy już działa, `xdg-open` startuje jedynie jej krótki proces
-    pośredniczący, który przekazuje adres do działającego okna — a czy to okno skorzysta z
-    tokenu, zależy od przeglądarki (zgłoszone z praktyki: zamknięta przeglądarka wychodziła na
-    wierzch, otwarta — nie).
-
-    `match_js` to warunek JS na oknie `w`; domyślnie okno przeglądarki z EasyPDM (po
-    początku tytułu). Ten sam mechanizm wyciąga na wierzch sam FreeCAD -- zob. _show_on_top.
-
-    Zwraca True, gdy skrypt udało się uruchomić — nie mówi, czy okno znalazł. Poza KDE (brak
-    gdbus albo usługi org.kde.KWin) po prostu zwraca False."""
-    if shutil.which("gdbus") is None:
-        return False
-    plugin = "easypdm-raise-browser"
-    path = None
-
-    def call(object_path, method, *args):
-        return subprocess.run(
-            ["gdbus", "call", "--session", "--dest", "org.kde.KWin",
-             "--object-path", object_path, "--method", method, *args],
-            capture_output=True, text=True, timeout=3,
-        )
-
-    try:
-        fd, path = tempfile.mkstemp(prefix="easypdm-kwin-", suffix=".js")
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            # json.dumps daje poprawny literał JS, z polskimi znakami jako \uXXXX.
-            if match_js is None:
-                match_js = '(w.caption || "").indexOf(%s) === 0' % json.dumps(APP_WINDOW_TITLE)
-            f.write(_KWIN_RAISE_SCRIPT % {"match": match_js})
-        # Gdyby poprzednie uruchomienie zostawiło skrypt wczytany, loadScript by odmówił.
-        call("/Scripting", "org.kde.kwin.Scripting.unloadScript", plugin)
-        loaded = call("/Scripting", "org.kde.kwin.Scripting.loadScript", path, plugin)
-        found = re.search(r"-?\d+", loaded.stdout or "")
-        if loaded.returncode != 0 or not found or int(found.group()) < 0:
-            return False
-        ran = call(f"/Scripting/Script{found.group()}", "org.kde.kwin.Script.run")
-        call("/Scripting", "org.kde.kwin.Scripting.unloadScript", plugin)
-        return ran.returncode == 0
-    except Exception:
-        return False
-    finally:
-        if path:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-
-
-def _focus_browser_window():
-    """Przenosi okno przeglądarki z EasyPDM na wierzch — odpowiednik `AppActivate "EasyPDM"`
-    z makr SolidWorks/Inventor. Tylko dla Linuksa; na Windowsie nie ma tu czego naprawiać.
-
-    Najpierw KWin (KDE, X11 i Wayland — zob. _raise_via_kwin), potem `wmctrl`/`xdotool`
-    (inne środowiska pod X11). Poza tym — GNOME pod Wayland — nie zadziała nic, bo kompozytor
-    na to nie pozwala; od strony przeglądarki czeka wtedy powiadomienie systemowe, którego
-    kliknięcie przełącza na kartę."""
-    if _raise_via_kwin():
-        return True
-    for command in (["wmctrl", "-a", APP_WINDOW_TITLE],
-                    ["xdotool", "search", "--name", "^" + re.escape(APP_WINDOW_TITLE), "windowactivate"]):
-        if shutil.which(command[0]) is None:
-            continue
-        try:
-            done = subprocess.run(command, timeout=3,
-                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            if done.returncode == 0:
-                return True
-        except Exception:
-            pass
-    return False
-
 
 def publish_cad_request(ticket, name, item_type=None, material=None, document_size=None, component=False,
                         suggested_item_number=None):
@@ -1883,7 +531,6 @@ def publish_cad_request(ticket, name, item_type=None, material=None, document_si
         pass
     return False
 
-
 def build_browser_create_url(name, ticket, suggested_item_number=None, document_size=None, item_type=None, component=False, material=None):
     """Adres, pod którym otwiera się przeglądarka systemowa zamiast natywnego formularza
     właściwości (zob. wait_for_ticket/submit_via_browser) — most logowania
@@ -1941,7 +588,6 @@ def build_browser_create_url(name, ticket, suggested_item_number=None, document_
     login_ticket = api_post_json("/auth/browser-bridge-ticket", {})["ticket"]
     login_params = {"ticket": login_ticket, "redirect": redirect_path}
     return f"{get_base_url()}/auth/browser-login?{urlencode(login_params)}"
-
 
 # ============================================================
 # Wykrywanie złożenia z App::Link (odnośniki do zewnętrznych, zapisanych plików .FCStd —
@@ -2011,7 +657,6 @@ def _iter_external_link_targets(doc):
         result[key][1] += qty
     return result
 
-
 def discover_component_tree(top_doc):
     """Rekurencyjnie schodzi po App::Link dokumentu `top_doc` (i dalej w głąb, jeśli
     linkowany dokument sam ma dalsze linki). Zwraca:
@@ -2040,7 +685,6 @@ def discover_component_tree(top_doc):
     visit(top_doc)
     return order, docs, edges
 
-
 def match_existing_item(doc, existing_items):
     """Sprawdza, czy etykieta dokumentu wygląda jak "numer (nazwa).REWIZJA" — format,
     który to samo makro nadaje PO wysłaniu i od razu zapisuje na dysk (Save As pod nazwą
@@ -2066,7 +710,6 @@ def match_existing_item(doc, existing_items):
             return it
     return None
 
-
 def match_existing_item_single(doc):
     """Same check as match_existing_item, for a SINGLE document -- looks the parsed item
     number up directly via GET /items/by-number/{itemNumber} (the same targeted endpoint
@@ -2087,11 +730,9 @@ def match_existing_item_single(doc):
         return it
     return None
 
-
 # Materiał "Default" to to, co FreeCAD przypisuje bryle, której nikt nie nadał materiału --
 # wysłanie go do PDM dałoby każdej części materiał "Default" i masę z przypadkowej gęstości.
 _UNASSIGNED_MATERIAL_NAMES = {"", "default"}
-
 
 def _final_solids(doc):
     """Widoczne, końcowe bryły części: obiekty z kształtem o niezerowej objętości, których nie
@@ -2112,7 +753,6 @@ def _final_solids(doc):
         except Exception:
             continue
     return result
-
 
 def _material_density_kg_m3(material):
     """Gęstość materiału w kg/m^3 albo None. FreeCAD trzyma ją jako tekst z jednostką
@@ -2137,7 +777,6 @@ def _material_density_kg_m3(material):
     except Exception:
         return None
 
-
 def _insertable_object(doc):
     """Obiekt, który złożenie pokazuje przy wstawianiu tej części: jej jedyna końcowa bryła,
     a jeśli ta siedzi w kontenerze App::Part -- najbardziej zewnętrzny taki kontener (to on
@@ -2156,7 +795,6 @@ def _insertable_object(doc):
     except Exception:
         pass
     return obj
-
 
 def _label_main_object(doc, record_name):
     """Nadaje bryle części nazwę rekordu z PDM, BEZ rewizji -- np. "1(Cube)" przy pliku
@@ -2179,7 +817,6 @@ def _label_main_object(doc, record_name):
     except Exception as e:
         App.Console.PrintWarning(f"EasyPDM: nie udalo sie zmienic etykiety bryly: {e}\n")
 
-
 def _component_record_name(linked_doc):
     """Nazwa rekordu PDM komponentu (bez rewizji) albo None, gdy plik nie jest z PDM.
 
@@ -2195,7 +832,6 @@ def _component_record_name(linked_doc):
     if not base or base != linked_doc.Label or "." not in base:
         return None
     return base.rsplit(".", 1)[0]
-
 
 def _label_links(doc):
     """Nadaje linkom złożenia nazwy komponentów z PDM, np. "2(Plate 1)" zamiast "Body001".
@@ -2227,7 +863,6 @@ def _label_links(doc):
             obj.Label = record_name
         except Exception as e:
             App.Console.PrintWarning(f"EasyPDM: nie udalo sie zmienic etykiety linku: {e}\n")
-
 
 def part_material_and_mass(doc):
     """(nazwa materiału albo None, masa w kg albo None) dla CZĘŚCI -- złożenia świadomie
@@ -2268,7 +903,6 @@ def part_material_and_mass(doc):
         App.Console.PrintMessage(f"EasyPDM: nie udalo sie odczytac materialu/masy: {e}\n")
         return None, None
 
-
 def _mass_text(mass_kg):
     """Masa w kg jako tekst z kropką: 4 miejsca po przecinku, a dla bardzo małych części tyle
     cyfr znaczących, żeby nie wyszło "0"."""
@@ -2279,7 +913,6 @@ def _mass_text(mass_kg):
         from decimal import Decimal
         text = format(Decimal(f"{mass_kg:.3g}"), "f")
     return text
-
 
 def _push_mass_and_material(doc, item_id):
     """Po wysyłce pliku zapisuje w elemencie PDM masę i materiał z modelu -- to samo, co robią
@@ -2299,7 +932,6 @@ def _push_mass_and_material(doc, item_id):
     except Exception as e:
         App.Console.PrintMessage(f"EasyPDM: nie udalo sie zapisac masy/materialu w PDM: {e}\n")
 
-
 def _ask_sheet_on_page(doc, page):
     """Put the EasyPDM sheet on the document's ordinary TechDraw page? Asked on every upload
     until the page has the sheet -- a "No" clicked by mistake must not lock the sheet out for
@@ -2308,7 +940,6 @@ def _ask_sheet_on_page(doc, page):
         None, t("pdm_title"), t("sheet_ask_existing_page", page=page.Label),
         QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.Yes)
     return answer == QtWidgets.QMessageBox.Yes
-
 
 def _refresh_drawing_sheet(doc, item_id):
     """Fills the EasyPDM sheet on the document's drawing pages before it is saved and sent, so
@@ -2321,7 +952,6 @@ def _refresh_drawing_sheet(doc, item_id):
             App.Console.PrintMessage("EasyPDM: drawing sheet refreshed on %s\n" % ", ".join(p.Label for p in changed))
     except Exception as e:
         App.Console.PrintMessage("EasyPDM: could not refresh the drawing sheet: %s\n" % e)
-
 
 def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=None, export_step=True, export_pdf=False):
     """Wspólna końcówka obu trybów: KOPIUJE bieżący plik dokumentu do PDM pod nazwą
@@ -2338,7 +968,7 @@ def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=
     process_assembly_tree/run), zapisze swój odnośnik już pod NOWĄ nazwą (i w tym samym
     `target_folder`, jeśli wszystkie komponenty tam trafiają — dzięki temu odnośnik
     zapisany jako ścieżka względna nadal działa). Dzięki temu po pobraniu złożenia+
-    składników przez EasyPDMDownload.FCMacro (który zapisuje pliki pod DOKŁADNIE tą samą
+    składników przez download.py (który zapisuje pliki pod DOKŁADNIE tą samą
     konwencją nazw, do jednego wybranego folderu) odnośniki od razu się zgadzają — bez tego
     złożenie szukałoby oryginalnej, lokalnej nazwy pliku sprzed wysyłki, której pobieranie
     nigdy by nie odtworzyło (potwierdzone w praktyce: pobrane złożenie zgłaszało
@@ -2374,7 +1004,7 @@ def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=
     # komponentów. Wcześniej było odwrotnie (kopia szła pierwsza, "dopiero po potwierdzonym
     # sukcesie serwera" zmieniała się etykieta i lokalny plik) i to był realny błąd: do PDM
     # trafiał plik sprzed przemianowania, więc złożenie pobrane potem przez
-    # EasyPDMDownload.FCMacro szukało komponentów pod ORYGINALNYMI nazwami sprzed wysyłki i
+    # download.py szukało komponentów pod ORYGINALNYMI nazwami sprzed wysyłki i
     # kończyło się serią "Link broken" (potwierdzone w praktyce na złożeniu, którego części
     # leżały na zupełnie innym dysku niż folder docelowy).
     #
@@ -2414,7 +1044,6 @@ def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=
         "newPath": doc.FileName,
         "localRenamed": local_renamed,
     }
-
 
 def _refresh_links_to(changed_doc):
     """Po zmianie ścieżki pliku dokumentu (Save As pod nazwą PDM, zob. _save_local_as_pdm_name)
@@ -2470,7 +1099,6 @@ def _refresh_links_to(changed_doc):
             except Exception:
                 pass
 
-
 def _ensure_fully_loaded(doc):
     """Dociąga dokument załadowany CZĘŚCIOWO (partial) do pełnego i zwraca dokument, na
     którym dalej należy pracować.
@@ -2500,7 +1128,6 @@ def _ensure_fully_loaded(doc):
     except Exception as e:
         App.Console.PrintMessage(f"EasyPDM: nie udalo sie dociagnac dokumentu '{doc.Name}': {e}\n")
     return doc
-
 
 def _save_local_as_pdm_name(doc, new_local_path):
     """Save As lokalnego dokumentu pod nazwą PDM (numer/nazwa/rewizja), do new_local_path —
@@ -2539,7 +1166,6 @@ def _save_local_as_pdm_name(doc, new_local_path):
         )
         return False
     return True
-
 
 def _upload_step_attachment(doc, item_id):
     """Eksportuje widoczną geometrię `doc` do STEP i wgrywa jako załącznik z rolą "step" —
@@ -2645,7 +1271,6 @@ def _upload_step_attachment(doc, item_id):
         _upload_model_image_attachment(doc, item_id)
     except Exception:
         pass
-
 
 def _upload_model_image_attachment(doc, item_id):
     """Zapisuje widok modelu do PNG i wgrywa jako załącznik z rolą "image" — to JEST podgląd
@@ -2763,7 +1388,6 @@ def _upload_model_image_attachment(doc, item_id):
             except Exception:
                 pass
 
-
 def _three_d_view_of(gui_doc):
     """Widok 3D dokumentu GUI, albo None gdy ten dokument nie ma własnego okna.
 
@@ -2784,7 +1408,6 @@ def _three_d_view_of(gui_doc):
         pass
     return None
 
-
 def _pdf_sheet_layout(page):
     """"easypdm-A3" / "-A2" / "-A1" when the page is on an EasyPDM sheet, else None.
 
@@ -2798,7 +1421,6 @@ def _pdf_sheet_layout(page):
     except Exception:
         pass
     return None
-
 
 def _upload_pdf_attachment(doc, item_id):
     """Eksportuje `doc` do PDF i wgrywa jako załącznik z rolą "pdf" — analogicznie do
@@ -2875,7 +1497,6 @@ def _upload_pdf_attachment(doc, item_id):
                     pass
     except Exception:
         pass
-
 
 def push_to_existing_item(doc, item_id, confirm_new_revision, target_folder=None, export_step=True, export_pdf=False):
     """Dogrywa bieżący dokument jako aktualny plik JUŻ ISTNIEJĄCEJ Części/Złożenia
@@ -2954,68 +1575,12 @@ def push_to_existing_item(doc, item_id, confirm_new_revision, target_folder=None
             ) from exc
         raise
 
-
-
-
-class LoginDialog(QtWidgets.QDialog):
-    """Logowanie do EasyPDM — pokazywane przez ensure_logged_in(), gdy nie ma jeszcze
-    zapisanej sesji albo poprzednia wygasła/została unieważniona."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle(t("login_dialog_title"))
-        self.setMinimumWidth(360)
-
-        layout = QtWidgets.QVBoxLayout(self)
-        form = QtWidgets.QFormLayout()
-        layout.addLayout(form)
-
-        self.server_edit = QtWidgets.QLineEdit(get_base_url())
-        form.addRow(t("api_address_label"), self.server_edit)
-
-        self.username_edit = QtWidgets.QLineEdit()
-        form.addRow(t("username_label"), self.username_edit)
-
-        self.password_edit = QtWidgets.QLineEdit()
-        self.password_edit.setEchoMode(QtWidgets.QLineEdit.Password)
-        form.addRow(t("password_label"), self.password_edit)
-
-        self.error_label = QtWidgets.QLabel("")
-        self.error_label.setStyleSheet("color: #c0392b;")
-        self.error_label.setWordWrap(True)
-        layout.addWidget(self.error_label)
-
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        buttons.button(QtWidgets.QDialogButtonBox.Ok).setText(t("login_button"))
-        buttons.button(QtWidgets.QDialogButtonBox.Cancel).setText(t("cancel_button"))
-        buttons.accepted.connect(self._try_login)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def _try_login(self):
-        self.error_label.setText("")
-        set_base_url(self.server_edit.text().strip())
-        username = self.username_edit.text().strip()
-        password = self.password_edit.text()
-        if not username or not password:
-            self.error_label.setText(t("login_missing_fields"))
-            return
-        try:
-            api_login(username, password)
-        except Exception as e:
-            self.error_label.setText(str(e))
-            return
-        self.accept()
-
-
 class TargetFolderDialog(QtWidgets.QDialog):
     """Jedyne natywne okno z polami w całym przebiegu run() — pyta o folder, do
     którego mają trafiać lokalne kopie (Save As) wysyłanych dokumentów — pokazywane RAZ, na
     samym początku, PRZED jakimkolwiek przetwarzaniem (żeby objęło też automatycznie
     wykryte drzewo złożenia, wysyłane wcześniej niż cokolwiek innego). Ten sam folder co
-    "Folder docelowy" w EasyPDMDownload.FCMacro (współdzielona preferencja DownloadFolder)
+    "Folder docelowy" w download.py (współdzielona preferencja DownloadFolder)
     — dzięki temu wysłane i pobrane pliki mogą lądować w tym samym, jednym miejscu. Trzyma
     też Adres API i informację o koncie (przeniesione tu z dawnego głównego okna "Wyślij do
     PDM", które już nie istnieje — wybór nowy/istniejący i wszystko dalsze dzieje się teraz
@@ -3098,30 +1663,6 @@ class TargetFolderDialog(QtWidgets.QDialog):
         self.result_folder = folder
         self.accept()
 
-
-def _main_window():
-    """Główne okno FreeCAD jako rodzic dla pytań makra (None bez GUI)."""
-    try:
-        import FreeCADGui as Gui
-
-        return Gui.getMainWindow()
-    except Exception:
-        return None
-
-
-def _show_on_top(icon, title, text):
-    """Komunikat, który wychodzi NA WIERZCH, także spod przeglądarki -- zob. tak samo nazwana
-    funkcja w EasyPDMDownload.FCMacro. Błąd głównego pliku pada zaraz po wypełnieniu
-    formularza, czyli gdy na wierzchu jest przeglądarka."""
-    if sys.platform.startswith("linux"):
-        _raise_via_kwin(_KWIN_FREECAD_MATCH % {"pid": os.getpid()})
-    box = QtWidgets.QMessageBox(icon, title, text, QtWidgets.QMessageBox.Ok, _main_window())
-    box.show()
-    box.raise_()
-    box.activateWindow()
-    box.exec()
-
-
 def _ask_yes_no(text, default_yes):
     """Pytanie Tak/Nie, które zawsze leży NAD oknem FreeCAD.
 
@@ -3138,7 +1679,6 @@ def _ask_yes_no(text, default_yes):
     box.raise_()
     box.activateWindow()
     return box.exec() == QtWidgets.QMessageBox.Yes
-
 
 class NewRevisionDialog(QtWidgets.QDialog):
     """Pytanie o stworzenie nowej rewizji elementu o statusie "Wydany", z opcjonalnym
@@ -3172,7 +1712,6 @@ class NewRevisionDialog(QtWidgets.QDialog):
 
     def comment_text(self):
         return self.comment_edit.toPlainText().strip()
-
 
 def wait_for_ticket(ticket, timeout_seconds=600, raise_browser=False):
     """Czeka, aż formularz zostanie wypełniony w przeglądarce — BEZ własnego okna.
@@ -3246,7 +1785,6 @@ def wait_for_ticket(ticket, timeout_seconds=600, raise_browser=False):
                 status_bar.clearMessage()
             except Exception:
                 pass
-
 
 def submit_via_browser(doc, target_folder):
     """Droga tworzenia nowego elementu ALBO dogrywania do istniejącego, gdy nie ma
@@ -3377,7 +1915,6 @@ def submit_via_browser(doc, target_folder):
         1, target_folder, export_step, export_pdf,
     )
 
-
 def sync_stale_children(parent_item_id, local_child_ids):
     """Wykrywa dzieci elementu `parent_item_id`, które istnieją w PDM, ale NIE ma ich już
     wśród `local_child_ids` (odkrytych właśnie w lokalnej strukturze FreeCAD -- usunięte
@@ -3417,7 +1954,6 @@ def sync_stale_children(parent_item_id, local_child_ids):
             api_patch_json(f"/items/{c.get('id')}/project", {"projectId": None})
         except Exception:
             pass
-
 
 class AssemblyDetectedDialog(QtWidgets.QDialog):
     """Jedno okno decydujące o całym złożeniu: drzewo plików i Tak/Nie/Anuluj, a gdy w
@@ -3473,7 +2009,6 @@ class AssemblyDetectedDialog(QtWidgets.QDialog):
     def export_pdf(self):
         return bool(self.pdf_box and self.pdf_box.isChecked())
 
-
 def _tree_summary_lines(top_file, order, edges, make_line):
     """Lista do okna "Wykryto złożenie" ułożona w drzewo z wcięciami: złożenie główne, pod
     nim jego części i podzłożenia, pod podzłożeniem jego części -- o poziom głębiej każde.
@@ -3508,7 +2043,6 @@ def _tree_summary_lines(top_file, order, edges, make_line):
             seen.add(f)
             lines.append(make_line(f, 1))
     return lines
-
 
 def process_assembly_tree(top_doc, target_folder=None):
     """Wykrywa złożenie (App::Link do zewnętrznych plików, rekurencyjnie) i dla KAŻDEGO
@@ -3825,7 +2359,6 @@ def process_assembly_tree(top_doc, target_folder=None):
 
     return edges_for_top, False, locked_matches
 
-
 def run():
     # Krok 0: upewnij się, że jest aktywna sesja — EasyPDM.Api wymaga jej dla każdego
     # wywołania poza samym logowaniem.
@@ -3897,7 +2430,6 @@ def run():
             t("upload_component_failed", file=os.path.basename(doc.FileName), error=failure),
         )
 
-
 def _save_open_documents():
     """Zwykły zapis (nie Save As) wszystkich otwartych, zapisanych już na dysku dokumentów:
     złożenia i każdej Części/pod-złożenia otwartego w tej sesji przez process_assembly_tree.
@@ -3939,7 +2471,6 @@ def _save_open_documents():
     if failed:
         lines = "\n".join(f"- {os.path.basename(path)}: {err}" for path, err in failed.items())
         QtWidgets.QMessageBox.warning(None, t("pdm_title"), t("final_save_failed", lines=lines))
-
 
 def _send_and_link(doc, target_folder):
     """Właściwa wysyłka: drzewo złożenia, dokument główny i relacje BOM. Wydzielone z run(),
@@ -4049,11 +2580,3 @@ def _send_and_link(doc, target_folder):
     # się nie dzieje.
     progress_mark(TOP_DOCUMENT_PROGRESS_KEY, "done")
     progress_finish()
-
-
-# Odpala się tylko, gdy faktycznie działa GUI FreeCAD (a nie np. freecadcmd/import
-# do testów) — bez GUI i tak nie dałoby się pokazać okna dialogowego. Only when run as a
-# macro (FreeCAD runs macros as __main__, as EasyPDMDownload relies on too): the EasyPDM
-# FreeCAD add-on loads this file as a module and calls run() from its menu.
-if App.GuiUp and __name__ == "__main__":
-    run()
