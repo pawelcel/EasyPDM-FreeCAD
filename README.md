@@ -7,10 +7,10 @@ assembly, **Log in** (approved in the browser, so FreeCAD never sees your passwo
 **EasyPDM menu in every workbench** in the EasyPDM menu (off by default). EasyPDM is a free, self-hosted PDM for small engineering firms: numbering,
 revisions, statuses, BOM and drawing title blocks filled in from the PDM.
 
-> This repository is generated: it is copied from
-> [`EasyPDM.FreeCad/`](https://github.com/pawelcel/EasyPDM/tree/main/EasyPDM.FreeCad) in the
-> EasyPDM repository on every EasyPDM release. Report issues and send changes
-> [there](https://github.com/pawelcel/EasyPDM/issues).
+This is the home of EasyPDM's FreeCAD integration: report problems and send changes here. The
+EasyPDM server, web app and the other CAD integrations live in
+[pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM). **Log in through the browser** needs an
+EasyPDM server from 0.9; everything else works with 0.8.
 
 ## Installing
 
@@ -20,7 +20,7 @@ revisions, statuses, BOM and drawing title blocks filled in from the PDM.
 
 Updates arrive the same way.
 
-Or unpack this repository into FreeCAD's `Mod` folder as `EasyPDM` (Linux usually
+Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/pawelcel/EasyPDM-FreeCAD/releases) into FreeCAD's `Mod` folder (it holds an `EasyPDM` folder) (Linux usually
 `~/.local/share/FreeCAD/v1-1/Mod`, Windows `%APPDATA%\FreeCAD\v1-1\Mod`).
 
 ## What works
@@ -50,7 +50,18 @@ the EasyPDM macros.
 ## Documentation
 
 - [CAD Integrations](https://github.com/pawelcel/EasyPDM/wiki/CAD-Integrations) on the EasyPDM wiki
-- [FreeCAD macros README](https://github.com/pawelcel/EasyPDM/blob/main/EasyPDM.FreeCad/README.md):
-  what Upload and Download do, drawing sheets, limitations
+- [How Upload and Download work](docs/README.md) ([polski](docs/README.pl.md),
+  [Deutsch](docs/README.de.md)): assemblies, drawings, drawing sheets, limitations
 
 FreeCAD 1.0 or newer. MIT licence.
+
+## Developing
+
+- The add-on is FreeCAD's namespaced layout: everything in `freecad/EasyPDM/`, imported by
+  FreeCAD as `freecad.EasyPDM.init_gui`. To try a change, link or copy this repository into
+  FreeCAD's `Mod` folder as `EasyPDM`.
+- The drawing sheets come from `tools/build_templates.py` (see its docstring); never edit the
+  SVG templates or the shared block in the macros by hand.
+- A release is a `vX.Y.Z` tag matching `<version>` in `package.xml`; the workflow makes a draft
+  GitHub release with the zip. See [CLAUDE.md](CLAUDE.md) for the conventions.
+

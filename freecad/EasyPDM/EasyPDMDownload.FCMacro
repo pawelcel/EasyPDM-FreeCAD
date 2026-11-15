@@ -98,7 +98,7 @@ except ImportError:
         from PySide import QtGui as QtWidgets  # bardzo stare FreeCAD (Qt4)
 
 
-# ===== BEGIN SHARED (copied into EasyPDMUpload.FCMacro and EasyPDMDownload.FCMacro by templates/build_templates.py; edit it there) =====
+# ===== BEGIN SHARED (copied into EasyPDMUpload.FCMacro and EasyPDMDownload.FCMacro by tools/build_templates.py; edit it there) =====
 import base64 as _sh_base64
 import glob as _sh_glob
 import time as _sh_time

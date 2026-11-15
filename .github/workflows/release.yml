@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  draft:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - name: Version matches package.xml
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          XML=$(grep -oP '(?<=<version>)[^<]+' package.xml)
+          if [ "$TAG" != "$XML" ]; then
+            echo "::error::Tag says $TAG but package.xml has $XML. Update <version> (and <date>), commit and tag again."
+            exit 1
+          fi
+      - name: Build the zip
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          mkdir -p out/EasyPDM
+          cp -r package.xml LICENSE README.md freecad out/EasyPDM/
+          (cd out && zip -q -r "../EasyPDM_FreeCad_Addon_v${VERSION}.zip" EasyPDM)
+      - name: Release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v header="## [$VERSION]" '$0 == header { found=1; next } found && /^## \[/ { exit } found { print }' CHANGELOG.md > notes.md
+          cat notes.md
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --title "EasyPDM for FreeCAD ${GITHUB_REF_NAME#v}" \
+            --notes-file notes.md "EasyPDM_FreeCad_Addon_${GITHUB_REF_NAME}.zip"

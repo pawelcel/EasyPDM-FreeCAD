@@ -1,0 +1,28 @@
+name: Check
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: Python files and macros parse
+        run: |
+          python3 - <<'PY'
+          import ast, pathlib
+          for p in [*pathlib.Path("freecad").rglob("*.py"), *pathlib.Path("freecad").rglob("*.FCMacro"), *pathlib.Path("tools").rglob("*.py")]:
+              ast.parse(p.read_text(encoding="utf-8"), str(p))
+              print("ok", p)
+          PY
+      - name: Drawing sheets match the generator
+        run: |
+          python3 tools/build_templates.py
+          git diff --exit-code -- freecad/
+      - name: Manifest is valid XML
+        run: python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('package.xml'); print('ok')"
