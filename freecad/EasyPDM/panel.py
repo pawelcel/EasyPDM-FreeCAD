@@ -10,6 +10,7 @@ import FreeCADGui as Gui
 
 from . import easypdm_addon as ea
 from .easypdm_addon import QtCore, QtGui, QtWidgets, _tr
+from .i18n import N_
 
 _dock = None
 
@@ -25,7 +26,7 @@ class _Panel(QtWidgets.QDockWidget):
         layout.addWidget(self.status_line)
         form = QtWidgets.QFormLayout()
         self.fields = {}
-        for key in ("Record", "Name", "Revision", "Status", "Locked by"):
+        for key in (N_("Record"), N_("Name"), N_("Revision"), N_("Status"), N_("Locked by")):
             value = QtWidgets.QLabel("–")
             value.setTextInteractionFlags(QtCore.Qt.TextSelectableByMouse)
             value.setWordWrap(True)
@@ -38,12 +39,12 @@ class _Panel(QtWidgets.QDockWidget):
         buttons = QtWidgets.QGridLayout()
         self.buttons = {}
         for i, (key, command, icon) in enumerate([
-            ("Refresh", None, "Panel"),
-            ("Open in browser", None, "EasyPDM"),
-            ("Lock for editing", "EasyPDM_Lock", "Lock"),
-            ("Release lock", "EasyPDM_Release", "Release"),
-            ("Upload", "EasyPDM_Upload", "Upload"),
-            ("Refresh drawing sheet", "EasyPDM_RefreshSheet", "RefreshSheet"),
+            (N_("Refresh"), None, "Panel"),
+            (N_("Open in browser"), None, "EasyPDM"),
+            (N_("Lock for editing"), "EasyPDM_Lock", "Lock"),
+            (N_("Release lock"), "EasyPDM_Release", "Release"),
+            (N_("Upload"), "EasyPDM_Upload", "Upload"),
+            (N_("Refresh drawing sheet"), "EasyPDM_RefreshSheet", "RefreshSheet"),
         ]):
             b = QtWidgets.QPushButton(QtGui.QIcon(ea._icon(icon)), _tr(key))
             buttons.addWidget(b, i // 2, i % 2)

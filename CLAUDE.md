@@ -30,6 +30,16 @@ never its outputs. After a layout change, run it with `--solidworks`, commit the
 and rebuild the SolidWorks sheet formats in `EasyPDM.SolidWorks/templates/` on a live SolidWorks.
 CI fails when the committed templates or `sheet.py` differ from what the script writes.
 
+## Translations
+
+Texts are translated through Qt (`i18n.py`): the English text in the code is the source, and
+`freecad/EasyPDM/translations/EasyPDM_<lang>.ts` / `.qm` hold the translations, loaded by FreeCAD
+for its own language. After adding or changing a text (`_tr("...")`, `N_("...")`, or an entry
+in `common.TRANSLATIONS`), run `python3 tools/update_translations.py`, translate what it marks
+unfinished, run it again so it compiles the `.qm` (needs Qt's `lrelease`, on the host at
+`/usr/lib/qt6/bin/lrelease`), and commit both files. CI fails when a `.ts` misses a text. A
+translation must keep every `{placeholder}` of its source.
+
 ## Testing
 
 There is no automated test of FreeCAD behaviour. Check a change in FreeCAD itself (offscreen is

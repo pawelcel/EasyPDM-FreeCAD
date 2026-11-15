@@ -27,6 +27,7 @@ import FreeCAD as App
 import FreeCADGui as Gui
 
 from . import secure_store
+from .i18n import N_, translate
 
 try:
     from PySide import QtCore, QtGui
@@ -42,49 +43,14 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 CLIENT_NAME = "EasyPDM for FreeCAD"
 
 
-# Menu texts in FreeCAD's own language (Preferences > General > Language), as upload and download do.
-_TEXTS = {
-    "pl": {"Upload": "Wyślij (Upload)", "Download": "Pobierz (Download)", "Log in…": "Zaloguj…", "Log out": "Wyloguj",
-           "EasyPDM menu in every workbench": "Menu EasyPDM w każdym środowisku pracy",
-           "Document panel": "Panel dokumentu", "Lock for editing": "Zablokuj do edycji", "Release lock": "Zwolnij blokadę",
-           "Refresh drawing sheet": "Odśwież arkusz rysunku",
-           "Signed in: {name} ({server})": "Zalogowany: {name} ({server})", "Not signed in": "Niezalogowany",
-           "This document is not in EasyPDM yet (upload it first).": "Tego dokumentu nie ma jeszcze w EasyPDM (najpierw go wyślij).",
-           "No document open.": "Brak otwartego dokumentu.",
-           "Locked for you: {item}": "Zablokowano dla Ciebie: {item}", "Lock released: {item}": "Zwolniono blokadę: {item}",
-           "Drawing sheet refreshed on {pages}.": "Odświeżono arkusz rysunku: {pages}.",
-           "No page uses the EasyPDM sheet.": "Żadna strona nie używa arkusza EasyPDM.",
-           "Record": "Rekord", "Name": "Nazwa", "Revision": "Rewizja", "Status": "Status", "Locked by": "Blokada",
-           "nobody": "nikt", "Refresh": "Odśwież", "Open in browser": "Otwórz w przeglądarce",
-           "Server address": "Adres serwera", "Download folder": "Folder pobierania", "Browse…": "Wybierz…",
-           "Login kept in": "Logowanie zapisane w",
-           "w_pracy": "w pracy", "sprawdzany": "sprawdzany", "wydany": "wydany", "anulowana": "anulowany"},
-    "de": {"Upload": "Hochladen", "Download": "Herunterladen", "Log in…": "Anmelden…", "Log out": "Abmelden",
-           "EasyPDM menu in every workbench": "EasyPDM-Menü in jedem Arbeitsbereich",
-           "Document panel": "Dokumentfenster", "Lock for editing": "Zum Bearbeiten sperren", "Release lock": "Sperre aufheben",
-           "Refresh drawing sheet": "Zeichnungsblatt aktualisieren",
-           "Signed in: {name} ({server})": "Angemeldet: {name} ({server})", "Not signed in": "Nicht angemeldet",
-           "This document is not in EasyPDM yet (upload it first).": "Dieses Dokument ist noch nicht in EasyPDM (zuerst hochladen).",
-           "No document open.": "Kein Dokument geöffnet.",
-           "Locked for you: {item}": "Für Sie gesperrt: {item}", "Lock released: {item}": "Sperre aufgehoben: {item}",
-           "Drawing sheet refreshed on {pages}.": "Zeichnungsblatt aktualisiert: {pages}.",
-           "No page uses the EasyPDM sheet.": "Keine Seite verwendet das EasyPDM-Blatt.",
-           "Record": "Datensatz", "Name": "Benennung", "Revision": "Revision", "Status": "Status", "Locked by": "Gesperrt von",
-           "nobody": "niemand", "Refresh": "Aktualisieren", "Open in browser": "Im Browser öffnen",
-           "Server address": "Serveradresse", "Download folder": "Download-Ordner", "Browse…": "Durchsuchen…",
-           "Login kept in": "Anmeldung gespeichert in",
-           "w_pracy": "in Arbeit", "sprawdzany": "in Prüfung", "wydany": "freigegeben", "anulowana": "storniert"},
-}
-
-
-_STATUS_EN = {"w_pracy": "in progress", "sprawdzany": "in review", "wydany": "released", "anulowana": "cancelled"}
+# Item statuses as the server names them, in English; translated like any other text.
+_STATUS_EN = {"w_pracy": N_("in progress"), "sprawdzany": N_("in review"), "wydany": N_("released"),
+              "anulowana": N_("cancelled")}
 
 
 def _tr(text, **values):
-    lang = App.ParamGet("User parameter:BaseApp/Preferences/General").GetString("Language", "")
-    # Empty means FreeCAD follows the system language.
-    code = {"Polish": "pl", "German": "de"}.get(lang, lang[:2].lower()) if lang else QtCore.QLocale.system().name()[:2]
-    out = _TEXTS.get(code, {}).get(text) or _STATUS_EN.get(text, text)
+    """`text` in FreeCAD's language (i18n.py), with {name} placeholders filled from `values`."""
+    out = translate(_STATUS_EN.get(text, text))
     return out.format(**values) if values else out
 
 
@@ -200,14 +166,14 @@ class DeviceLoginDialog(QtWidgets.QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent or Gui.getMainWindow())
-        self.setWindowTitle("EasyPDM – Log in")
+        self.setWindowTitle(_tr("EasyPDM – Log in"))
         self.setMinimumWidth(460)
         layout = QtWidgets.QVBoxLayout(self)
-        layout.addWidget(QtWidgets.QLabel("EasyPDM server address:"))
+        layout.addWidget(QtWidgets.QLabel(_tr("EasyPDM server address:")))
         self.server = QtWidgets.QLineEdit(_server_url())
         layout.addWidget(self.server)
         self.info = QtWidgets.QLabel(
-            "EasyPDM opens in the browser. Check that it shows the same code as here and click Allow.")
+            _tr("EasyPDM opens in the browser. Check that it shows the same code as here and click Allow."))
         self.info.setWordWrap(True)
         layout.addWidget(self.info)
         self.code = QtWidgets.QLabel("")
@@ -218,10 +184,10 @@ class DeviceLoginDialog(QtWidgets.QDialog):
         self.code.setAlignment(QtCore.Qt.AlignCenter)
         layout.addWidget(self.code)
         buttons = QtWidgets.QHBoxLayout()
-        self.password_button = QtWidgets.QPushButton("Log in with password…")
-        self.start_button = QtWidgets.QPushButton("Log in in the browser")
+        self.password_button = QtWidgets.QPushButton(_tr("Log in with password…"))
+        self.start_button = QtWidgets.QPushButton(_tr("Log in in the browser"))
         self.start_button.setDefault(True)
-        cancel = QtWidgets.QPushButton("Cancel")
+        cancel = QtWidgets.QPushButton(_tr("Cancel"))
         buttons.addWidget(self.password_button)
         buttons.addStretch(1)
         buttons.addWidget(cancel)
@@ -248,17 +214,17 @@ class DeviceLoginDialog(QtWidgets.QDialog):
         try:
             status, body = _post(server + "/api/auth/device/start", {"client": CLIENT_NAME})
         except Exception as e:
-            self.info.setText("No connection to %s: %s" % (server, e))
+            self.info.setText(_tr("No connection to {server}: {error}", server=server, error=e))
             return
         if status == 404:
-            self.info.setText("This EasyPDM server is older than 0.9. Use “Log in with password…”.")
+            self.info.setText(_tr("This EasyPDM server is older than 0.9. Use “Log in with password…”."))
             return
         if status != 200 or not body:
-            self.info.setText("The server refused the sign-in (%s)." % status)
+            self.info.setText(_tr("The server refused the sign-in ({status}).", status=status))
             return
         self.device_code = body["deviceCode"]
         self.code.setText(body["userCode"])
-        self.info.setText("Waiting for you to allow the sign-in in the browser…")
+        self.info.setText(_tr("Waiting for you to allow the sign-in in the browser…"))
         self.start_button.setEnabled(False)
         self.server.setEnabled(False)
         self.ticks = 0
@@ -269,7 +235,7 @@ class DeviceLoginDialog(QtWidgets.QDialog):
         self.ticks += 1
         if self.ticks > 300:
             self.timer.stop()
-            self.info.setText("The sign-in was not allowed in time. Try again.")
+            self.info.setText(_tr("The sign-in was not allowed in time. Try again."))
             self.start_button.setEnabled(True)
             self.server.setEnabled(True)
             return
@@ -288,7 +254,7 @@ class DeviceLoginDialog(QtWidgets.QDialog):
             p.SetString("SavedDisplayName", body.get("displayName") or body.get("username") or "")
             self.accept()
             return
-        self.info.setText((body or {}).get("detail") or "The sign-in did not go through (%s)." % status)
+        self.info.setText((body or {}).get("detail") or _tr("The sign-in did not go through ({status}).", status=status))
         self.start_button.setEnabled(True)
         self.server.setEnabled(True)
 
@@ -306,7 +272,7 @@ def log_in():
     if dialog.exec() == QtWidgets.QDialog.Accepted:
         App.Console.PrintMessage("EasyPDM: logged in as %s\n" % (_signed_in_as() or "?"))
         QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM",
-                                          "Logged in to %s as %s." % (_server_url(), _signed_in_as() or "?"))
+                                          _tr("Logged in to {server} as {name}.", server=_server_url(), name=_signed_in_as() or "?"))
         _refresh_panel()
 
 
@@ -319,7 +285,7 @@ def log_out():
             pass  # signed out here anyway; the token can be revoked under Settings > Users
     secure_store.set(_base_url(), None)
     _params().SetString("SavedDisplayName", "")
-    QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", "Logged out of EasyPDM.")
+    QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", _tr("Logged out of EasyPDM."))
     _refresh_panel()
 
 
@@ -381,7 +347,7 @@ class _Command:
         self.text, self.tip, self.action, self.icon, self.needs_document = text, tip, action, icon, needs_document
 
     def GetResources(self):
-        return {"MenuText": _tr(self.text), "ToolTip": self.tip, "Pixmap": _icon(self.icon)}
+        return {"MenuText": _tr(self.text), "ToolTip": _tr(self.tip), "Pixmap": _icon(self.icon)}
 
     def IsActive(self):
         return App.ActiveDocument is not None if self.needs_document else True
@@ -397,19 +363,19 @@ class _Command:
 
 
 COMMANDS = [
-    ("EasyPDM_Upload", _Command("Upload", "Send the active document to EasyPDM",
+    ("EasyPDM_Upload", _Command(N_("Upload"), N_("Send the active document to EasyPDM"),
                                 lambda: module("upload", fresh=True).run(), "Upload", needs_document=True)),
-    ("EasyPDM_Download", _Command("Download", "Download an item from EasyPDM with its components",
+    ("EasyPDM_Download", _Command(N_("Download"), N_("Download an item from EasyPDM with its components"),
                                   lambda: module("download", fresh=True).main(), "Download")),
-    ("EasyPDM_Panel", _Command("Document panel", "Show the active document's item in EasyPDM", toggle_panel, "Panel")),
-    ("EasyPDM_Lock", _Command("Lock for editing", "Lock the active document's item so only you can change it",
+    ("EasyPDM_Panel", _Command(N_("Document panel"), N_("Show the active document's item in EasyPDM"), toggle_panel, "Panel")),
+    ("EasyPDM_Lock", _Command(N_("Lock for editing"), N_("Lock the active document's item so only you can change it"),
                               lock_item, "Lock", needs_document=True)),
-    ("EasyPDM_Release", _Command("Release lock", "Release your lock on the active document's item",
+    ("EasyPDM_Release", _Command(N_("Release lock"), N_("Release your lock on the active document's item"),
                                  release_item, "Release", needs_document=True)),
-    ("EasyPDM_RefreshSheet", _Command("Refresh drawing sheet", "Fill the EasyPDM drawing sheet with the item's current data, without uploading",
+    ("EasyPDM_RefreshSheet", _Command(N_("Refresh drawing sheet"), N_("Fill the EasyPDM drawing sheet with the item's current data, without uploading"),
                                       refresh_sheet, "RefreshSheet", needs_document=True)),
-    ("EasyPDM_LogIn", _Command("Log in…", "Sign in to EasyPDM by approving it in the browser", log_in, "LogIn")),
-    ("EasyPDM_LogOut", _Command("Log out", "Sign out of EasyPDM", log_out, "LogOut")),
+    ("EasyPDM_LogIn", _Command(N_("Log in…"), N_("Sign in to EasyPDM by approving it in the browser"), log_in, "LogIn")),
+    ("EasyPDM_LogOut", _Command(N_("Log out"), N_("Sign out of EasyPDM"), log_out, "LogOut")),
 ]
 # Where the menus put separators: before these commands.
 _GROUP_STARTS = {"EasyPDM_Panel", "EasyPDM_LogIn"}
@@ -429,7 +395,7 @@ class _MenuEverywhereCommand:
 
     def GetResources(self):
         return {"MenuText": _tr("EasyPDM menu in every workbench"),
-                "ToolTip": "Show the EasyPDM menu in every workbench, not only in EasyPDM",
+                "ToolTip": _tr("Show the EasyPDM menu in every workbench, not only in EasyPDM"),
                 "Checkable": menu_everywhere()}
 
     def IsActive(self):

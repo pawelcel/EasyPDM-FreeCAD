@@ -42,7 +42,8 @@ Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/paw
 - **Who is signed in, and to which server**, at the top of the EasyPDM menu.
 - **Edit → Preferences → EasyPDM**: server address, download folder, the menu in every
   workbench, where the login is kept, and Log out.
-- Menu texts in English, Polish and German, following FreeCAD's language.
+- In English, Polish and German, following FreeCAD's language (Qt translations; more languages
+  welcome).
 
 Upload and Download are the former EasyPDM FreeCAD macros, live-tested on FreeCAD 1.1, now
 modules of the add-on.
@@ -76,6 +77,8 @@ FreeCAD 1.0 or newer. MIT licence.
 - The add-on is FreeCAD's namespaced layout: everything in `freecad/EasyPDM/`, imported by
   FreeCAD as `freecad.EasyPDM.init_gui`. To try a change, link or copy this repository into
   FreeCAD's `Mod` folder as `EasyPDM`.
+- Translations are Qt `.ts`/`.qm` files in `freecad/EasyPDM/translations/`, kept in step with
+  the code by `tools/update_translations.py`; `--add fr` starts a new language.
 - The drawing sheets come from `tools/build_templates.py` (see its docstring); never edit the
   SVG templates or `freecad/EasyPDM/sheet.py` by hand.
 - A release is a `vX.Y.Z` tag matching `<version>` in `package.xml`; the workflow makes a draft

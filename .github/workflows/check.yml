@@ -24,5 +24,7 @@ jobs:
         run: |
           python3 tools/build_templates.py
           git diff --exit-code -- freecad/
+      - name: Translations list every text in the code
+        run: python3 tools/update_translations.py --check
       - name: Manifest is valid XML
         run: python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('package.xml'); print('ok')"

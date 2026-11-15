@@ -1,10 +1,14 @@
 # EasyPDM add-on: loaded by FreeCAD at start-up with the GUI. The add-on uses FreeCAD's
-# namespaced layout (freecad/EasyPDM/, assembled by build_addon.sh), so FreeCAD imports this
-# module itself -- no InitGui.py and no changes to sys.path. See easypdm_addon.py.
+# namespaced layout (freecad/EasyPDM/), so FreeCAD imports this module
+# itself -- no InitGui.py and no changes to sys.path. See easypdm_addon.py.
 import FreeCAD as App
 import FreeCADGui as Gui
 
 try:
+    from . import i18n
+
+    i18n.register()  # before anything asks for a translated text
+
     from . import easypdm_addon
 
     easypdm_addon.register_commands()
