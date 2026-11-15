@@ -10,5 +10,9 @@ try:
     easypdm_addon.register_commands()
     Gui.addWorkbench(easypdm_addon.EasyPDMWorkbench())
     easypdm_addon.install_menu()
+
+    from . import preferences
+
+    preferences.register()
 except Exception as e:  # an add-on must never stop FreeCAD from starting
     App.Console.PrintError("EasyPDM add-on failed to load: %s\n" % e)

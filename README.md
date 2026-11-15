@@ -32,6 +32,15 @@ Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/paw
 - **Download** of an item with its whole component tree into one folder, opened in FreeCAD.
 - **Log in** through the browser (EasyPDM servers from 0.9; "Log in with password…" for older
   ones) and **Log out**.
+- **Document panel** (EasyPDM → Document panel): beside the model tree, the active document's
+  item — record name, name, revision, status, who holds the lock — with buttons for the commands
+  below and "Open in browser" (opens the item's project).
+- **Lock for editing / Release lock** on the active document's item, as the lock in the browser.
+- **Refresh drawing sheet**: fills the EasyPDM sheet with the item's current data without
+  uploading.
+- **Who is signed in, and to which server**, at the top of the EasyPDM menu.
+- **Edit → Preferences → EasyPDM**: server address, download folder, the menu in every
+  workbench, where the login is kept, and Log out.
 - Menu texts in English, Polish and German, following FreeCAD's language.
 
 Upload and Download are the EasyPDM FreeCAD macros, live-tested on FreeCAD 1.1; the add-on runs

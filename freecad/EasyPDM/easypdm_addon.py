@@ -44,17 +44,47 @@ CLIENT_NAME = "EasyPDM for FreeCAD"
 # Menu texts in FreeCAD's own language (Preferences > General > Language), as the macros do.
 _TEXTS = {
     "pl": {"Upload": "Wyślij (Upload)", "Download": "Pobierz (Download)", "Log in…": "Zaloguj…", "Log out": "Wyloguj",
-           "EasyPDM menu in every workbench": "Menu EasyPDM w każdym środowisku pracy"},
+           "EasyPDM menu in every workbench": "Menu EasyPDM w każdym środowisku pracy",
+           "Document panel": "Panel dokumentu", "Lock for editing": "Zablokuj do edycji", "Release lock": "Zwolnij blokadę",
+           "Refresh drawing sheet": "Odśwież arkusz rysunku",
+           "Signed in: {name} ({server})": "Zalogowany: {name} ({server})", "Not signed in": "Niezalogowany",
+           "This document is not in EasyPDM yet (upload it first).": "Tego dokumentu nie ma jeszcze w EasyPDM (najpierw go wyślij).",
+           "No document open.": "Brak otwartego dokumentu.",
+           "Locked for you: {item}": "Zablokowano dla Ciebie: {item}", "Lock released: {item}": "Zwolniono blokadę: {item}",
+           "Drawing sheet refreshed on {pages}.": "Odświeżono arkusz rysunku: {pages}.",
+           "No page uses the EasyPDM sheet.": "Żadna strona nie używa arkusza EasyPDM.",
+           "Record": "Rekord", "Name": "Nazwa", "Revision": "Rewizja", "Status": "Status", "Locked by": "Blokada",
+           "nobody": "nikt", "Refresh": "Odśwież", "Open in browser": "Otwórz w przeglądarce",
+           "Server address": "Adres serwera", "Download folder": "Folder pobierania", "Browse…": "Wybierz…",
+           "Login kept in": "Logowanie zapisane w",
+           "w_pracy": "w pracy", "sprawdzany": "sprawdzany", "wydany": "wydany", "anulowana": "anulowany"},
     "de": {"Upload": "Hochladen", "Download": "Herunterladen", "Log in…": "Anmelden…", "Log out": "Abmelden",
-           "EasyPDM menu in every workbench": "EasyPDM-Menü in jedem Arbeitsbereich"},
+           "EasyPDM menu in every workbench": "EasyPDM-Menü in jedem Arbeitsbereich",
+           "Document panel": "Dokumentfenster", "Lock for editing": "Zum Bearbeiten sperren", "Release lock": "Sperre aufheben",
+           "Refresh drawing sheet": "Zeichnungsblatt aktualisieren",
+           "Signed in: {name} ({server})": "Angemeldet: {name} ({server})", "Not signed in": "Nicht angemeldet",
+           "This document is not in EasyPDM yet (upload it first).": "Dieses Dokument ist noch nicht in EasyPDM (zuerst hochladen).",
+           "No document open.": "Kein Dokument geöffnet.",
+           "Locked for you: {item}": "Für Sie gesperrt: {item}", "Lock released: {item}": "Sperre aufgehoben: {item}",
+           "Drawing sheet refreshed on {pages}.": "Zeichnungsblatt aktualisiert: {pages}.",
+           "No page uses the EasyPDM sheet.": "Keine Seite verwendet das EasyPDM-Blatt.",
+           "Record": "Datensatz", "Name": "Benennung", "Revision": "Revision", "Status": "Status", "Locked by": "Gesperrt von",
+           "nobody": "niemand", "Refresh": "Aktualisieren", "Open in browser": "Im Browser öffnen",
+           "Server address": "Serveradresse", "Download folder": "Download-Ordner", "Browse…": "Durchsuchen…",
+           "Login kept in": "Anmeldung gespeichert in",
+           "w_pracy": "in Arbeit", "sprawdzany": "in Prüfung", "wydany": "freigegeben", "anulowana": "storniert"},
 }
 
 
-def _tr(text):
+_STATUS_EN = {"w_pracy": "in progress", "sprawdzany": "in review", "wydany": "released", "anulowana": "cancelled"}
+
+
+def _tr(text, **values):
     lang = App.ParamGet("User parameter:BaseApp/Preferences/General").GetString("Language", "")
     # Empty means FreeCAD follows the system language.
     code = {"Polish": "pl", "German": "de"}.get(lang, lang[:2].lower()) if lang else QtCore.QLocale.system().name()[:2]
-    return _TEXTS.get(code, {}).get(text, text)
+    out = _TEXTS.get(code, {}).get(text) or _STATUS_EN.get(text, text)
+    return out.format(**values) if values else out
 
 
 def _params():
@@ -93,6 +123,72 @@ def _post(url, body, token=None):
             return e.code, json.loads(raw) if raw else None
         except ValueError:
             return e.code, {"detail": raw.decode("utf-8", "replace")}
+
+
+def api(method, path, body=None):
+    """A call to the EasyPDM API with the stored login: (status, parsed JSON or None)."""
+    headers = {"Content-Type": "application/json"}
+    token = _token()
+    if token:
+        headers["Cookie"] = "pdm_session=" + token
+    data = None if body is None else json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(_base_url() + path, data=data, method=method, headers=headers)
+    try:
+        with urllib.request.urlopen(req, timeout=15) as r:
+            raw = r.read()
+            return r.status, (json.loads(raw) if raw else None)
+    except urllib.error.HTTPError as e:
+        raw = e.read().decode("utf-8", "replace")
+        try:
+            return e.code, json.loads(raw)
+        except ValueError:
+            return e.code, {"detail": raw}
+
+
+class CommandError(Exception):
+    """A message for the person, shown as it is."""
+
+
+def api_error(status, body):
+    """The server's reason in words: it answers refusals with a JSON string, a ProblemDetails
+    object or plain text, depending on the endpoint."""
+    if isinstance(body, str) and body:
+        return body
+    if isinstance(body, dict):
+        return body.get("detail") or body.get("title") or json.dumps(body)
+    return "HTTP %s" % status
+
+
+_resolver = None
+
+
+def item_for(doc):
+    """The EasyPDM item of `doc` (as GET /items/{id} returns it), or None when it has none.
+
+    The same match the Upload macro makes before an upload: the document's label is the record
+    name and revision it was saved under ("C0012(Bracket).B"), and number and name must both
+    agree with the item -- so a file merely named like one is not taken for it."""
+    global _resolver
+    if doc is None:
+        return None
+    if _resolver is None:
+        _resolver = load_macro("EasyPDMUpload.FCMacro")
+    return _resolver["match_existing_item_single"](doc)
+
+
+def require_item(doc):
+    if doc is None:
+        raise CommandError(_tr("No document open."))
+    if not _token():
+        raise CommandError(_tr("Not signed in"))
+    item = item_for(doc)
+    if item is None:
+        raise CommandError(_tr("This document is not in EasyPDM yet (upload it first)."))
+    return item
+
+
+def item_label(item):
+    return item.get("recordName") or "%s(%s)" % (item.get("itemNumber"), item.get("name") or item.get("fileName"))
 
 
 def load_macro(file_name):
@@ -224,6 +320,7 @@ def log_in():
         App.Console.PrintMessage("EasyPDM: logged in as %s\n" % (_signed_in_as() or "?"))
         QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM",
                                           "Logged in to %s as %s." % (_server_url(), _signed_in_as() or "?"))
+        _refresh_panel()
 
 
 def log_out():
@@ -236,15 +333,69 @@ def log_out():
     secure_store.set(_base_url(), None)
     _params().SetString("SavedDisplayName", "")
     QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", "Logged out of EasyPDM.")
+    _refresh_panel()
+
+
+def _notify(message):
+    App.Console.PrintMessage("EasyPDM: %s\n" % message)
+    QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", message)
+    _refresh_panel()
+
+
+def _set_lock(lock):
+    doc = App.ActiveDocument
+    item = require_item(doc)
+    status, body = api("POST", "/items/%s/%s" % (item["id"], "lock" if lock else "release"))
+    if status != 200:
+        raise CommandError(api_error(status, body))
+    _notify(_tr("Locked for you: {item}" if lock else "Lock released: {item}", item=item_label(item)))
+
+
+def lock_item():
+    _set_lock(True)
+
+
+def release_item():
+    _set_lock(False)
+
+
+def refresh_sheet():
+    """Fills the EasyPDM drawing sheet of the active document with the item's current data,
+    without uploading anything -- the same refresh Upload and Download do (refresh_sheets in the
+    macros' shared block); pages without the EasyPDM sheet are left alone and nothing is saved."""
+    doc = App.ActiveDocument
+    item = require_item(doc)
+    changed = load_macro("EasyPDMUpload.FCMacro")["refresh_sheets"](doc, item["id"], None, True)
+    if changed:
+        doc.recompute()
+        _notify(_tr("Drawing sheet refreshed on {pages}.", pages=", ".join(p.Label for p in changed)))
+    else:
+        _notify(_tr("No page uses the EasyPDM sheet."))
+
+
+def toggle_panel():
+    from . import panel
+    panel.toggle()
+
+
+def _refresh_panel():
+    try:
+        from . import panel
+        panel.refresh_if_open()
+    except Exception:
+        pass
+
+
+def _icon(name):
+    return os.path.join(HERE, "icons", name + ".svg")
 
 
 class _Command:
-    def __init__(self, text, tip, action, needs_document=False):
-        self.text, self.tip, self.action, self.needs_document = text, tip, action, needs_document
+    def __init__(self, text, tip, action, icon, needs_document=False):
+        self.text, self.tip, self.action, self.icon, self.needs_document = text, tip, action, icon, needs_document
 
     def GetResources(self):
-        return {"MenuText": _tr(self.text), "ToolTip": self.tip,
-                "Pixmap": ICON}
+        return {"MenuText": _tr(self.text), "ToolTip": self.tip, "Pixmap": _icon(self.icon)}
 
     def IsActive(self):
         return App.ActiveDocument is not None if self.needs_document else True
@@ -252,6 +403,8 @@ class _Command:
     def Activated(self):
         try:
             self.action()
+        except CommandError as e:
+            QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "EasyPDM", str(e))
         except Exception as e:  # never let a click take FreeCAD down
             App.Console.PrintError("EasyPDM: %s\n" % e)
             QtWidgets.QMessageBox.critical(Gui.getMainWindow(), "EasyPDM", str(e))
@@ -259,15 +412,25 @@ class _Command:
 
 COMMANDS = [
     ("EasyPDM_Upload", _Command("Upload", "Send the active document to EasyPDM",
-                                lambda: load_macro("EasyPDMUpload.FCMacro")["run"](), needs_document=True)),
+                                lambda: load_macro("EasyPDMUpload.FCMacro")["run"](), "Upload", needs_document=True)),
     ("EasyPDM_Download", _Command("Download", "Download an item from EasyPDM with its components",
-                                  lambda: load_macro("EasyPDMDownload.FCMacro")["main"]())),
-    ("EasyPDM_LogIn", _Command("Log in…", "Sign in to EasyPDM by approving it in the browser", log_in)),
-    ("EasyPDM_LogOut", _Command("Log out", "Sign out of EasyPDM", log_out)),
+                                  lambda: load_macro("EasyPDMDownload.FCMacro")["main"](), "Download")),
+    ("EasyPDM_Panel", _Command("Document panel", "Show the active document's item in EasyPDM", toggle_panel, "Panel")),
+    ("EasyPDM_Lock", _Command("Lock for editing", "Lock the active document's item so only you can change it",
+                              lock_item, "Lock", needs_document=True)),
+    ("EasyPDM_Release", _Command("Release lock", "Release your lock on the active document's item",
+                                 release_item, "Release", needs_document=True)),
+    ("EasyPDM_RefreshSheet", _Command("Refresh drawing sheet", "Fill the EasyPDM drawing sheet with the item's current data, without uploading",
+                                      refresh_sheet, "RefreshSheet", needs_document=True)),
+    ("EasyPDM_LogIn", _Command("Log in…", "Sign in to EasyPDM by approving it in the browser", log_in, "LogIn")),
+    ("EasyPDM_LogOut", _Command("Log out", "Sign out of EasyPDM", log_out, "LogOut")),
 ]
+# Where the menus put separators: before these commands.
+_GROUP_STARTS = {"EasyPDM_Panel", "EasyPDM_LogIn"}
+_TOOLBAR = ["EasyPDM_Upload", "EasyPDM_Download", "EasyPDM_Panel", "EasyPDM_Lock", "EasyPDM_Release"]
 
 
-ICON = os.path.join(HERE, "icons", "EasyPDM.svg")
+ICON = _icon("EasyPDM")
 MENU_EVERYWHERE = "MenuInEveryWorkbench"
 
 
@@ -305,6 +468,35 @@ def _global_menu_action(bar):
 # The menu in every workbench, when the user turned it on. FreeCAD rebuilds the menu bar whenever
 # the workbench changes, so it is put back after every switch, at the end of the bar, before Help
 # when there is one. In the EasyPDM workbench its own menu is there already.
+def status_text():
+    if not _token():
+        return _tr("Not signed in")
+    return _tr("Signed in: {name} ({server})", name=_signed_in_as() or "?", server=_server_url())
+
+
+def _show_status(menu):
+    """Puts who is signed in, and to which server, at the top of an EasyPDM menu, freshly each
+    time it opens (a disabled entry: information, not a command)."""
+    status = next((a for a in menu.actions() if a.objectName() == "EasyPDM_Status"), None)
+    if status is None:
+        first = menu.actions()[0] if menu.actions() else None
+        status = QtGui.QAction(menu) if hasattr(QtGui, "QAction") else QtWidgets.QAction(menu)
+        status.setObjectName("EasyPDM_Status")
+        status.setEnabled(False)
+        menu.insertAction(first, status)
+        menu.insertSeparator(first)
+    status.setText(status_text())
+
+
+def _decorate_menus(bar):
+    for action in bar.actions():
+        menu = action.menu()
+        if menu is None or action.text().replace("&", "") != "EasyPDM" or menu.property("easypdm_status"):
+            continue
+        menu.setProperty("easypdm_status", True)
+        menu.aboutToShow.connect(lambda m=menu: _show_status(m))
+
+
 def _sync_menu(*_):
     mw = Gui.getMainWindow()
     bar = mw.menuBar()
@@ -312,16 +504,18 @@ def _sync_menu(*_):
     if not menu_everywhere():
         if ours is not None:
             bar.removeAction(ours)
+        _decorate_menus(bar)
         return
     for action in bar.actions():
         if action is ours or action.text().replace("&", "") == "EasyPDM":
+            _decorate_menus(bar)
             return
     menu = QtWidgets.QMenu("&EasyPDM", mw)
     menu.menuAction().setObjectName("EasyPDM_Menu")
     for name, command in COMMANDS:
-        if name == "EasyPDM_LogIn":
+        if name in _GROUP_STARTS:
             menu.addSeparator()
-        action = menu.addAction(_tr(command.text))
+        action = menu.addAction(QtGui.QIcon(_icon(command.icon)), _tr(command.text))
         action.setToolTip(command.tip)
         action.triggered.connect(lambda checked=False, n=name: Gui.runCommand(n))
     help_action = next((a for a in bar.actions() if a.text().replace("&", "").lower() in ("help", "pomoc", "hilfe")), None)
@@ -329,6 +523,7 @@ def _sync_menu(*_):
         bar.insertMenu(help_action, menu)
     else:
         bar.addMenu(menu)
+    _decorate_menus(bar)
 
 
 def install_menu():
@@ -345,9 +540,13 @@ class EasyPDMWorkbench(Gui.Workbench):
     Icon = ICON
 
     def Initialize(self):
-        names = [name for name, _ in COMMANDS]
-        self.appendToolbar("EasyPDM", names)
-        self.appendMenu("EasyPDM", names + ["Separator", "EasyPDM_MenuEverywhere"])
+        menu = []
+        for name, _ in COMMANDS:
+            if name in _GROUP_STARTS:
+                menu.append("Separator")
+            menu.append(name)
+        self.appendToolbar("EasyPDM", _TOOLBAR)
+        self.appendMenu("EasyPDM", menu + ["Separator", "EasyPDM_MenuEverywhere"])
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"

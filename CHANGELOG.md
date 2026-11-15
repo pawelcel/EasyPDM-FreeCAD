@@ -6,6 +6,14 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+### Added
+- **Document panel.** EasyPDM → Document panel opens a dock beside the model tree showing the active document's item — record name, name, revision, status and who holds the lock — with buttons for Refresh, Open in browser (the item's project), Lock, Release, Upload and Refresh drawing sheet. It follows the active document and asks the server only while it is open.
+- **Lock for editing and Release lock** for the active document's item, the same lock as in the browser; a refusal from the server (for example on a released item) is shown in words.
+- **Refresh drawing sheet** fills the EasyPDM sheet with the item's current data without uploading the document.
+- **Edit → Preferences → EasyPDM**: server address, download folder, the menu in every workbench, where the login is kept, and Log out.
+- **The EasyPDM menu shows who is signed in, and to which server,** at its top.
+- **An icon for each command** on the toolbar and in the menus.
+
 ### Security
 - **The login token is kept in the system's secret storage.** DPAPI on Windows, the keychain on macOS and the Secret Service (KWallet, GNOME Keyring…) through `secret-tool` on Linux, per server, instead of FreeCAD's plain-text preferences. Without one it stays in the preferences, and the Report view says so once. A token left there by an earlier version is moved on first use, so nobody has to log in again. The macros the add-on runs use the same storage.
 
