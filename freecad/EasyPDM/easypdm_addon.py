@@ -591,12 +591,14 @@ def _sync_menu(*_):
             return
     if ours is not None:
         ours.setVisible(True)
+        _title_menu(ours.menu())
         _decorate_menus(bar)
         return
     # Always a new menu: FreeCAD deletes the menus it takes off the bar on a rebuild, so the
     # previous one may be gone on the C++ side and cannot be inserted again.
-    menu = QtWidgets.QMenu("&EasyPDM", mw)
+    menu = QtWidgets.QMenu(mw)
     menu.menuAction().setObjectName("EasyPDM_Menu")
+    _title_menu(menu)
     for name, command in COMMANDS:
         if name in _GROUP_STARTS:
             menu.addSeparator()
@@ -607,6 +609,14 @@ def _sync_menu(*_):
         action.triggered.connect(lambda checked=False, n=name: Gui.runCommand(n))
     _insert_menu(bar, menu)
     _decorate_menus(bar)
+
+
+def _title_menu(menu):
+    # FreeCAD retranslates every menu on the bar (on the first document opened, among others)
+    # from the untranslated title it keeps in the menu action's data. A menu without it was
+    # given an empty title: still there and visible, but blank. "EasyPDM" needs no translation.
+    menu.menuAction().setData("&EasyPDM")
+    menu.setTitle("&EasyPDM")
 
 
 def _insert_menu(bar, menu):
