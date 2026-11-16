@@ -583,10 +583,16 @@ def _sync_menu(*_):
             bar.removeAction(ours)
         _decorate_menus(bar)
         return
+    # FreeCAD hides the menus the current workbench does not know rather than removing them
+    # (opening a document does that to ours), so a hidden one does not count as being there.
     for action in bar.actions():
-        if action is ours or action.text().replace("&", "") == "EasyPDM":
+        if action.isVisible() and action.text().replace("&", "") == "EasyPDM":
             _decorate_menus(bar)
             return
+    if ours is not None:
+        ours.setVisible(True)
+        _decorate_menus(bar)
+        return
     # Always a new menu: FreeCAD deletes the menus it takes off the bar on a rebuild, so the
     # previous one may be gone on the C++ side and cannot be inserted again.
     menu = QtWidgets.QMenu("&EasyPDM", mw)
@@ -614,31 +620,35 @@ def _insert_menu(bar, menu):
 class _MenuBarWatch(QtCore.QObject):
     """Puts the menu back whenever FreeCAD rebuilds the menu bar.
 
-    workbenchActivated alone is not enough: opening a document from the start page activates
-    the document's workbench and then rebuilds the bar once more, after that signal, which took
-    the EasyPDM menu away again until the next switch of workbench. A rebuild always starts by
-    removing the bar's actions, so any removal schedules one sync, run once the rebuild is done."""
+    workbenchActivated alone is not enough: opening a document activates the document's
+    workbench and then sets the bar up once more, after that signal, hiding the menus it does
+    not know -- ours among them -- until the next switch of workbench. Any action removed from
+    the bar, or changed (hidden), schedules one sync, run once FreeCAD is done; the sync only
+    acts when the menu is missing or hidden, so its own change does not start another round."""
 
-    _REMOVED = getattr(QtCore.QEvent, "ActionRemoved", None) or QtCore.QEvent.Type.ActionRemoved
+    _WATCHED = tuple(getattr(QtCore.QEvent, name, None) or getattr(QtCore.QEvent.Type, name)
+                     for name in ("ActionRemoved", "ActionChanged"))
 
     def __init__(self, bar):
         super().__init__(bar)
         self._pending = False
 
     def eventFilter(self, watched, event):
-        if event.type() == self._REMOVED and not self._pending:
+        if event.type() in self._WATCHED and not self._pending:
             self._pending = True
             QtCore.QTimer.singleShot(0, self._sync)
         return False
 
     def _sync(self):
         self._pending = False
-        _safe_sync()
+        # Only the menu: this runs on every change of a menu bar action, and the account button
+        # (show_account walks all of FreeCAD's actions) is brought up to date on workbench changes.
+        _safe_sync(menu_only=True)
 
 
-def _safe_sync(*_):
+def _safe_sync(*_, menu_only=False):
     try:
-        _sync_menu_and_buttons()
+        _sync_menu() if menu_only else _sync_menu_and_buttons()
     except Exception as e:  # a menu that fails must still leave FreeCAD working, and say why
         App.Console.PrintError("EasyPDM: could not put the menu back: %s\n" % e)
 
