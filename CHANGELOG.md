@@ -6,6 +6,12 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+## [0.9.0]
+
+**In short:** the first release of EasyPDM for FreeCAD as a workbench of its own, in place of the macros. Upload, Download, Log in and Log out from the EasyPDM menu and toolbar; a document panel beside the model tree with the item's record, revision, status and lock, and for an assembly the tree of its components marked current or outdated; an Upload that refuses work built on outdated files; the login kept in the system's secret storage; English, Polish and German.
+
+**Install:** Edit → Preferences → Addon Manager → Custom repositories, add `https://github.com/pawelcel/EasyPDM-FreeCAD` with branch `main`, then install EasyPDM in the Addon Manager and restart FreeCAD; or unpack the zip below into FreeCAD's `Mod` folder. Works with any EasyPDM server; signing in through the browser, "Open in browser" on the item itself and the outdated-component check need [EasyPDM 0.9](https://github.com/pawelcel/EasyPDM/releases).
+
 ### Added
 - **Document panel.** EasyPDM → Document panel opens a dock beside the model tree showing the active document's item — record name, name, revision, status and who holds the lock — with buttons for Refresh, Open in browser (the item itself, on EasyPDM servers from 0.9), Lock, Release, Upload and Refresh drawing sheet. It follows the active document and asks the server only while it is open.
 - **Locking** the active document's item, the same lock as in the browser; a refusal from the server (for example on a released item) is shown in words.
