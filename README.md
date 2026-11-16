@@ -35,8 +35,14 @@ Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/paw
 - **Document panel** (EasyPDM → Document panel): beside the model tree, the active document's
   item — record name, name, revision, status, who holds the lock — with buttons for the commands
   below and "Open in browser" (opens the item in EasyPDM; with a server older than 0.9, the
-  whole-database view).
-- **Lock for editing / Release lock** on the active document's item, as the lock in the browser.
+  whole-database view). For an assembly, the tree of its components, each marked whether it is
+  the newest file in EasyPDM, changed here, or has a newer file uploaded by someone else.
+- **Upload refuses work built on outdated files**: when the document or one of its components
+  is older than its file in EasyPDM, it lists them, with who uploaded the newer one and when,
+  so they can be downloaded first (EasyPDM servers from 0.9).
+- **Lock for editing / Release lock** on the active document's item, as the lock in the browser:
+  one button, which shows what a click does and is greyed out for a released item or while
+  someone else holds the lock. **Log in / Log out** is one button too.
 - **Refresh drawing sheet**: fills the EasyPDM sheet with the item's current data without
   uploading.
 - **Who is signed in, and to which server**, at the top of the EasyPDM menu.

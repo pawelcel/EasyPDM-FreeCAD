@@ -8,11 +8,14 @@ the macros were released with EasyPDM itself; see the
 
 ### Added
 - **Document panel.** EasyPDM → Document panel opens a dock beside the model tree showing the active document's item — record name, name, revision, status and who holds the lock — with buttons for Refresh, Open in browser (the item itself, on EasyPDM servers from 0.9), Lock, Release, Upload and Refresh drawing sheet. It follows the active document and asks the server only while it is open.
-- **Lock for editing and Release lock** for the active document's item, the same lock as in the browser; a refusal from the server (for example on a released item) is shown in words.
+- **Locking** the active document's item, the same lock as in the browser; a refusal from the server (for example on a released item) is shown in words.
 - **Refresh drawing sheet** fills the EasyPDM sheet with the item's current data without uploading the document.
 - **Edit → Preferences → EasyPDM**: server address, download folder, the menu in every workbench, where the login is kept, and Log out.
 - **The EasyPDM menu shows who is signed in, and to which server,** at its top.
 - **An icon for each command** on the toolbar and in the menus.
+- **Which components are outdated.** For an assembly, the document panel shows the tree of its components, each marked as the newest file in EasyPDM, changed here, not in EasyPDM yet, or with a newer file in EasyPDM (a new revision, or the same revision uploaded again), with who uploaded it and when, and who holds its lock. Upload writes a version stamp into each document it sends, so a file is recognised also after FreeCAD saves it again unchanged; files without one are recognised by their content. Needs an EasyPDM 0.9 server.
+- **Upload refuses work built on outdated files.** When the document or one of its components is older than its file in EasyPDM, Upload stops before sending anything and lists them, so the newer files can be downloaded first instead of being overwritten or left out of the assembly.
+- **One button for the lock, one for the account.** Lock for editing and Release lock are a single button in the toolbar, the menus and the panel, showing what a click does now and greyed out for a released or cancelled item or while someone else holds the lock; Log in and Log out are one button the same way.
 
 ### Security
 - **The login token is kept in the system's secret storage.** DPAPI on Windows, the keychain on macOS and the Secret Service (KWallet, GNOME Keyring…) through `secret-tool` on Linux, per server, instead of FreeCAD's plain-text preferences. Without one it stays in the preferences, and the Report view says so once. A token left there by an earlier version is moved on first use, so nobody has to log in again.

@@ -96,6 +96,46 @@
         <translation>Zwolniono blokadę: {item}</translation>
     </message>
     <message>
+        <source>Lock for editing</source>
+        <translation>Zablokuj do edycji</translation>
+    </message>
+    <message>
+        <source>Released or cancelled items cannot be changed.</source>
+        <translation>Wydanych ani anulowanych elementów nie można zmieniać.</translation>
+    </message>
+    <message>
+        <source>Release lock</source>
+        <translation>Zwolnij blokadę</translation>
+    </message>
+    <message>
+        <source>Locked by {name}</source>
+        <translation>Zablokowany przez: {name}</translation>
+    </message>
+    <message>
+        <source>Lock the active document's item so only you can change it</source>
+        <translation>Zablokuj element aktywnego dokumentu, żeby tylko Ty mógł go zmieniać</translation>
+    </message>
+    <message>
+        <source>Release your lock on the active document's item</source>
+        <translation>Zwolnij swoją blokadę elementu aktywnego dokumentu</translation>
+    </message>
+    <message>
+        <source>Log out</source>
+        <translation>Wyloguj</translation>
+    </message>
+    <message>
+        <source>Sign out of EasyPDM</source>
+        <translation>Wyloguj się z EasyPDM</translation>
+    </message>
+    <message>
+        <source>Log in…</source>
+        <translation>Zaloguj…</translation>
+    </message>
+    <message>
+        <source>Sign in to EasyPDM by approving it in the browser</source>
+        <translation>Zaloguj się do EasyPDM, zatwierdzając logowanie w przeglądarce</translation>
+    </message>
+    <message>
         <source>Drawing sheet refreshed on {pages}.</source>
         <translation>Odświeżono arkusz rysunku: {pages}.</translation>
     </message>
@@ -128,44 +168,12 @@
         <translation>Pokaż element aktywnego dokumentu w EasyPDM</translation>
     </message>
     <message>
-        <source>Lock for editing</source>
-        <translation>Zablokuj do edycji</translation>
-    </message>
-    <message>
-        <source>Lock the active document's item so only you can change it</source>
-        <translation>Zablokuj element aktywnego dokumentu, żeby tylko Ty mógł go zmieniać</translation>
-    </message>
-    <message>
-        <source>Release lock</source>
-        <translation>Zwolnij blokadę</translation>
-    </message>
-    <message>
-        <source>Release your lock on the active document's item</source>
-        <translation>Zwolnij swoją blokadę elementu aktywnego dokumentu</translation>
-    </message>
-    <message>
         <source>Refresh drawing sheet</source>
         <translation>Odśwież arkusz rysunku</translation>
     </message>
     <message>
         <source>Fill the EasyPDM drawing sheet with the item's current data, without uploading</source>
         <translation>Wypełnij arkusz rysunku EasyPDM bieżącymi danymi elementu, bez wysyłania</translation>
-    </message>
-    <message>
-        <source>Log in…</source>
-        <translation>Zaloguj…</translation>
-    </message>
-    <message>
-        <source>Sign in to EasyPDM by approving it in the browser</source>
-        <translation>Zaloguj się do EasyPDM, zatwierdzając logowanie w przeglądarce</translation>
-    </message>
-    <message>
-        <source>Log out</source>
-        <translation>Wyloguj</translation>
-    </message>
-    <message>
-        <source>Sign out of EasyPDM</source>
-        <translation>Wyloguj się z EasyPDM</translation>
     </message>
     <message>
         <source>EasyPDM menu in every workbench</source>
@@ -208,8 +216,60 @@
         <translation>Otwórz w przeglądarce</translation>
     </message>
     <message>
+        <source>Document</source>
+        <translation>Dokument</translation>
+    </message>
+    <message>
+        <source>Here</source>
+        <translation>Tutaj</translation>
+    </message>
+    <message>
+        <source>EasyPDM</source>
+        <translation>EasyPDM</translation>
+    </message>
+    <message>
+        <source>State</source>
+        <translation>Stan</translation>
+    </message>
+    <message>
         <source>nobody</source>
         <translation>nikt</translation>
+    </message>
+    <message>
+        <source>✓ newest</source>
+        <translation>✓ najnowszy</translation>
+    </message>
+    <message>
+        <source>⚠ newer file in EasyPDM</source>
+        <translation>⚠ nowszy plik w EasyPDM</translation>
+    </message>
+    <message>
+        <source>• changed here, not uploaded</source>
+        <translation>• zmieniony tutaj, niewysłany</translation>
+    </message>
+    <message>
+        <source>– not in EasyPDM yet</source>
+        <translation>– jeszcze nie w EasyPDM</translation>
+    </message>
+    <message>
+        <source>– no file in EasyPDM</source>
+        <translation>– brak pliku w EasyPDM</translation>
+    </message>
+    <message>
+        <source>Could not check the components: {error}</source>
+        <translation>Nie udało się sprawdzić komponentów: {error}</translation>
+    </message>
+    <message>
+        <source>Older than in EasyPDM: {count}. Download the newest before uploading.</source>
+        <translation>Starsze niż w EasyPDM: {count}. Przed wysłaniem pobierz najnowsze.</translation>
+    </message>
+    <message>
+        <source>All components are the newest files in EasyPDM.</source>
+        <translation>Wszystkie komponenty to najnowsze pliki z EasyPDM.</translation>
+    </message>
+    <message>
+        <source>In EasyPDM: {file}, uploaded by {who} on {when}</source>
+        <translation>W EasyPDM: {file}, wysłał(a) {who}, {when}</translation>
     </message>
     <message>
         <source>Server address</source>
@@ -334,6 +394,26 @@ Wstawić na nią arkusz EasyPDM z tabelką wypełnianą z PDM? Widoki zostają.<
         <source>Cannot use this folder: {error}</source>
         <comment>cannot_use_folder</comment>
         <translation>Nie można użyć tego folderu: {error}</translation>
+    </message>
+    <message>
+        <source>Newer files in EasyPDM</source>
+        <comment>outdated_components_title</comment>
+        <translation>Nowsze pliki w EasyPDM</translation>
+    </message>
+    <message>
+        <source>These documents are older than their files in EasyPDM, so the upload would send work built on outdated files. Download the newest ones (EasyPDM → Download), then upload again:</source>
+        <comment>outdated_components_intro</comment>
+        <translation>Te dokumenty są starsze niż ich pliki w EasyPDM, więc wysyłka oparłaby się na nieaktualnych plikach. Pobierz najnowsze (EasyPDM → Pobierz) i wyślij ponownie:</translation>
+    </message>
+    <message>
+        <source>• {label}: yours {mine}, in EasyPDM {theirs}, uploaded by {who} on {when}</source>
+        <comment>outdated_component_line</comment>
+        <translation>• {label}: u Ciebie {mine}, w EasyPDM {theirs}, wysłał(a) {who}, {when}</translation>
+    </message>
+    <message>
+        <source>Could not check whether the components are the newest files: {error}</source>
+        <comment>structure_check_failed</comment>
+        <translation>Nie udało się sprawdzić, czy komponenty to najnowsze pliki: {error}</translation>
     </message>
     <message>
         <source>EasyPDM: folder for downloaded and uploaded files (Edit &gt; Preferences &gt; EasyPDM changes it later)</source>

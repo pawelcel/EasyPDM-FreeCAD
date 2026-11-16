@@ -197,6 +197,7 @@ from .common import (  # noqa: F401
     t,
     working_folder,
 )
+from . import structure
 from .sheet import (  # noqa: F401
     SHEET_FORMATS,
     SHEET_TITLE_PREFIX,
@@ -1015,6 +1016,9 @@ def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=
     # holds, so it has to be there before the sheet is filled and the file is saved and sent.
     _push_mass_and_material(doc, item_id)
     _refresh_drawing_sheet(doc, item_id)
+    # A new version stamp in the document, saved with it and sent with the file: how a later
+    # check knows which EasyPDM file a local copy is (structure.py).
+    content_version = structure.stamp(doc)
     local_renamed = _save_local_as_pdm_name(doc, new_local_path)
     if local_renamed:
         _refresh_links_to(doc)
@@ -1028,7 +1032,7 @@ def _rename_and_upload(doc, item_id, record_name, name, revision, target_folder=
     # nowy plik, więc nieudana wysyłka nie zabiera poprzedniej kopii tej rewizji.
     api_upload_file(
         f"/items/{item_id}/attachments", doc.FileName,
-        override_filename=new_filename, extra_fields={"role": "cad"},
+        override_filename=new_filename, extra_fields={"role": "cad", "contentVersion": content_version},
     )
     if export_step:
         _upload_step_attachment(doc, item_id)
@@ -2267,6 +2271,38 @@ def process_assembly_tree(top_doc, target_folder=None):
 
     return edges_for_top, False, locked_matches
 
+def _components_are_current(doc):
+    """False (after telling the user which documents and why) when `doc` or a component it
+    links to is an older file than the one in EasyPDM; True otherwise, also when the server is
+    older than 0.9 and cannot tell, or the check itself fails (the upload reports that)."""
+    try:
+        rows = structure.check(doc, api_get, api_post_json, discover_component_tree, match_existing_item)
+    except structure.ServerTooOld:
+        return True
+    except Exception as e:
+        App.Console.PrintWarning("EasyPDM: %s\n" % t("structure_check_failed", error=e))
+        return True
+    stale = structure.outdated(rows)
+    if not stale:
+        return True
+    lines = []
+    for row in stale:
+        server = row.server or {}
+        current = server.get("current") or {}
+        local = server.get("localVersion") or {}
+        mine = local.get("revisionLabel") or structure.local_revision(row.doc) or "?"
+        if local.get("uploadedAt"):
+            # Same letter on both sides is common (the revision overwritten): the dates tell them apart.
+            mine += " (%s)" % structure.when(local.get("uploadedAt"))
+        lines.append(t(
+            "outdated_component_line", label=row.label, mine=mine,
+            theirs=current.get("revisionLabel") or "?", who=current.get("uploadedBy") or "?",
+            when=structure.when(current.get("uploadedAt")),
+        ))
+    _show_on_top(QtWidgets.QMessageBox.Warning, t("outdated_components_title"),
+                 t("outdated_components_intro") + "\n\n" + "\n".join(lines))
+    return False
+
 def run():
     # Krok 0: upewnij się, że jest aktywna sesja — EasyPDM.Api wymaga jej dla każdego
     # wywołania poza samym logowaniem.
@@ -2299,6 +2335,12 @@ def run():
         except Exception as e:
             QtWidgets.QMessageBox.critical(None, t("pdm_title"), t("save_failed", error=e))
             return
+
+    # Krok 1-bis: nic nie idzie do PDM, jeśli dokument albo któryś z jego komponentów jest
+    # starszym plikiem niż ten w EasyPDM -- złożenie zbudowane na nieaktualnych częściach
+    # nadpisałoby cudzą pracę albo wskazywało stare pliki. Najpierw trzeba pobrać nowsze.
+    if not _components_are_current(doc):
+        return
 
     # Krok 1a-0: folder docelowy dla lokalnych kopii (Save As) — ten z preferencji (Edit >
     # Preferences > EasyPDM > Download folder), wspólny z pobieraniem; pytany tylko raz, póki

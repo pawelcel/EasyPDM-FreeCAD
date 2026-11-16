@@ -274,6 +274,7 @@ def log_in():
         QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM",
                                           _tr("Logged in to {server} as {name}.", server=_server_url(), name=_signed_in_as() or "?"))
         _refresh_panel()
+    show_account()
 
 
 def log_out():
@@ -287,6 +288,7 @@ def log_out():
     _params().SetString("SavedDisplayName", "")
     QtWidgets.QMessageBox.information(Gui.getMainWindow(), "EasyPDM", _tr("Logged out of EasyPDM."))
     _refresh_panel()
+    show_account()
 
 
 def _notify(message):
@@ -304,12 +306,145 @@ def _set_lock(lock):
     _notify(_tr("Locked for you: {item}" if lock else "Lock released: {item}", item=item_label(item)))
 
 
-def lock_item():
-    _set_lock(True)
+# --- One command each for the lock and for the account -------------------------------------
+# Lock for editing / Release lock and Log in / Log out are each one button, in the toolbar, the
+# menus and the panel, showing what a click would do now. FreeCAD asks a command for its text
+# and icon once, so the actions are updated in place (_show_command) whenever the answer changes.
+
+def _actions(name):
+    """The QActions FreeCAD made for command `name`, and those of the menu in every workbench."""
+    mw = Gui.getMainWindow()
+    action_class = getattr(QtGui, "QAction", None) or QtWidgets.QAction
+    found = [a for a in mw.findChildren(action_class) if a.objectName() == name]
+    try:
+        found += [a for a in Gui.Command.get(name).getAction() if a not in found]
+    except Exception:
+        pass
+    return found
 
 
-def release_item():
-    _set_lock(False)
+def _show_command(name, text, icon, tip):
+    for action in _actions(name):
+        action.setText(text)
+        action.setIcon(QtGui.QIcon(_icon(icon)))
+        action.setToolTip(tip)
+        action.setStatusTip(tip)
+
+
+_me = None
+
+
+def my_id():
+    """The signed-in user's id, asked once per server and login."""
+    global _me
+    key = (_server_url(), _token())
+    if _me is None or _me[0] != key:
+        status, me = api("GET", "/auth/me")
+        _me = (key, (me or {}).get("id") if status == 200 else None)
+    return _me[1]
+
+
+def lock_choice(item):
+    """(what a click does: "lock", "release" or None, text, icon, why not) for `item`: release
+    when the signed-in user holds the lock, lock when nobody does; nothing for a released or
+    cancelled item (it cannot be changed) or while someone else holds the lock."""
+    if item is None:
+        return None, N_("Lock for editing"), "Lock", ""
+    if item.get("status") in ("wydany", "anulowana"):
+        return None, N_("Lock for editing"), "Lock", _tr("Released or cancelled items cannot be changed.")
+    if not item.get("ownerLocked"):
+        return "lock", N_("Lock for editing"), "Lock", ""
+    try:
+        mine = bool(item.get("ownerId")) and item.get("ownerId") == my_id()
+    except Exception:
+        mine = False
+    if mine:
+        return "release", N_("Release lock"), "Release", ""
+    return None, N_("Release lock"), "Release", _tr("Locked by {name}", name=item.get("ownerDisplayName") or "?")
+
+
+def _doc_key(doc):
+    return (doc.Name, doc.Label) if doc is not None else None
+
+
+# What the lock button can do for the document it was last worked out for; until then (another
+# document) it stays clickable and the click asks the server.
+_lock_known = {"doc": None, "action": None}
+
+
+def show_lock(item):
+    """Puts the lock button in every place into the state for `item`, the active document's."""
+    choice = lock_choice(item)
+    action, text, icon, why = choice
+    _lock_known.update(doc=_doc_key(App.ActiveDocument), action=action)
+    tips = {"lock": N_("Lock the active document's item so only you can change it"),
+            "release": N_("Release your lock on the active document's item")}
+    _show_command("EasyPDM_Lock", _tr(text), icon, why or _tr(tips.get(action, tips["lock"])))
+    return choice
+
+
+def toggle_lock():
+    doc = App.ActiveDocument
+    found = require_item(doc)
+    status, item = api("GET", "/items/%s" % found["id"])
+    item = item if status == 200 else found
+    action, _text, _icon_name, why = lock_choice(item)
+    if action is None:
+        show_lock(item)
+        raise CommandError(why)
+    _set_lock(action == "lock")
+    status, item = api("GET", "/items/%s" % found["id"])
+    show_lock(item if status == 200 else None)
+    _refresh_panel()
+
+
+class _LockCommand:
+    def GetResources(self):
+        return {"MenuText": _tr("Lock for editing"),
+                "ToolTip": _tr("Lock the active document's item so only you can change it"),
+                "Pixmap": _icon("Lock")}
+
+    def IsActive(self):
+        doc = App.ActiveDocument
+        if doc is None:
+            return False
+        return _lock_known["doc"] != _doc_key(doc) or _lock_known["action"] is not None
+
+    def Activated(self):
+        _run_safely(toggle_lock)
+
+
+def _account_state():
+    if _token():
+        return N_("Log out"), N_("Sign out of EasyPDM"), "LogOut"
+    return N_("Log in…"), N_("Sign in to EasyPDM by approving it in the browser"), "LogIn"
+
+
+def show_account():
+    text, tip, icon = _account_state()
+    _show_command("EasyPDM_Account", _tr(text), icon, _tr(tip))
+
+
+class _AccountCommand:
+    def GetResources(self):
+        text, tip, icon = _account_state()
+        return {"MenuText": _tr(text), "ToolTip": _tr(tip), "Pixmap": _icon(icon)}
+
+    def IsActive(self):
+        return True
+
+    def Activated(self):
+        _run_safely(log_out if _token() else log_in)
+
+
+def _run_safely(action):
+    try:
+        action()
+    except CommandError as e:
+        QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "EasyPDM", str(e))
+    except Exception as e:  # never let a click take FreeCAD down
+        App.Console.PrintError("EasyPDM: %s\n" % e)
+        QtWidgets.QMessageBox.critical(Gui.getMainWindow(), "EasyPDM", str(e))
 
 
 def refresh_sheet():
@@ -353,13 +488,7 @@ class _Command:
         return App.ActiveDocument is not None if self.needs_document else True
 
     def Activated(self):
-        try:
-            self.action()
-        except CommandError as e:
-            QtWidgets.QMessageBox.warning(Gui.getMainWindow(), "EasyPDM", str(e))
-        except Exception as e:  # never let a click take FreeCAD down
-            App.Console.PrintError("EasyPDM: %s\n" % e)
-            QtWidgets.QMessageBox.critical(Gui.getMainWindow(), "EasyPDM", str(e))
+        _run_safely(self.action)
 
 
 COMMANDS = [
@@ -368,18 +497,14 @@ COMMANDS = [
     ("EasyPDM_Download", _Command(N_("Download"), N_("Download an item from EasyPDM with its components"),
                                   lambda: module("download", fresh=True).main(), "Download")),
     ("EasyPDM_Panel", _Command(N_("Document panel"), N_("Show the active document's item in EasyPDM"), toggle_panel, "Panel")),
-    ("EasyPDM_Lock", _Command(N_("Lock for editing"), N_("Lock the active document's item so only you can change it"),
-                              lock_item, "Lock", needs_document=True)),
-    ("EasyPDM_Release", _Command(N_("Release lock"), N_("Release your lock on the active document's item"),
-                                 release_item, "Release", needs_document=True)),
+    ("EasyPDM_Lock", _LockCommand()),
     ("EasyPDM_RefreshSheet", _Command(N_("Refresh drawing sheet"), N_("Fill the EasyPDM drawing sheet with the item's current data, without uploading"),
                                       refresh_sheet, "RefreshSheet", needs_document=True)),
-    ("EasyPDM_LogIn", _Command(N_("Log in…"), N_("Sign in to EasyPDM by approving it in the browser"), log_in, "LogIn")),
-    ("EasyPDM_LogOut", _Command(N_("Log out"), N_("Sign out of EasyPDM"), log_out, "LogOut")),
+    ("EasyPDM_Account", _AccountCommand()),
 ]
 # Where the menus put separators: before these commands.
-_GROUP_STARTS = {"EasyPDM_Panel", "EasyPDM_LogIn"}
-_TOOLBAR = ["EasyPDM_Upload", "EasyPDM_Download", "EasyPDM_Panel", "EasyPDM_Lock", "EasyPDM_Release"]
+_GROUP_STARTS = {"EasyPDM_Panel", "EasyPDM_Account"}
+_TOOLBAR = ["EasyPDM_Upload", "EasyPDM_Download", "EasyPDM_Panel", "EasyPDM_Lock", "EasyPDM_Account"]
 
 
 ICON = _icon("EasyPDM")
@@ -467,8 +592,10 @@ def _sync_menu(*_):
     for name, command in COMMANDS:
         if name in _GROUP_STARTS:
             menu.addSeparator()
-        action = menu.addAction(QtGui.QIcon(_icon(command.icon)), _tr(command.text))
-        action.setToolTip(command.tip)
+        res = command.GetResources()
+        action = menu.addAction(QtGui.QIcon(res["Pixmap"]), res["MenuText"])
+        action.setToolTip(res["ToolTip"])
+        action.setObjectName(name)  # found again by _show_command
         action.triggered.connect(lambda checked=False, n=name: Gui.runCommand(n))
     help_action = next((a for a in bar.actions() if a.text().replace("&", "").lower() in ("help", "pomoc", "hilfe")), None)
     if help_action is not None:
@@ -478,10 +605,17 @@ def _sync_menu(*_):
     _decorate_menus(bar)
 
 
+def _sync_menu_and_buttons(*_):
+    _sync_menu()
+    # FreeCAD makes a command's actions when a workbench first shows it, with the text it had at
+    # registration: bring the account button to the current login.
+    show_account()
+
+
 def install_menu():
     mw = Gui.getMainWindow()
-    mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _sync_menu))
-    QtCore.QTimer.singleShot(0, _sync_menu)
+    mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _sync_menu_and_buttons))
+    QtCore.QTimer.singleShot(0, _sync_menu_and_buttons)
 
 
 class EasyPDMWorkbench(Gui.Workbench):
