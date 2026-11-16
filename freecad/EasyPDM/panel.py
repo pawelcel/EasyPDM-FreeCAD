@@ -65,6 +65,11 @@ class _Panel(QtWidgets.QDockWidget):
         self.structure.setRootIsDecorated(True)
         self.structure.setUniformRowHeights(True)
         layout.addWidget(self.structure, 1)
+        # Takes the spare height while there is no component tree, so a part's panel stays
+        # packed at the top instead of Qt spreading the labels over the whole dock.
+        self.filler = layout.count()
+        layout.addStretch(1)
+        self._layout = layout
         self.structure_summary.hide()
         self.structure.hide()
         self.setWidget(body)
@@ -149,6 +154,7 @@ class _Panel(QtWidgets.QDockWidget):
         self.structure.clear()
         self.structure_summary.hide()
         self.structure.hide()
+        self._layout.setStretch(self.filler, 1)
         try:
             upload = ea.module("upload")
             common = ea.module("common")
@@ -194,6 +200,7 @@ class _Panel(QtWidgets.QDockWidget):
             else:
                 self.structure.addTopLevelItem(node)
             parents.append(node)
+        self._layout.setStretch(self.filler, 0)
         self.structure.expandAll()
         for column in range(4):
             self.structure.resizeColumnToContents(column)
