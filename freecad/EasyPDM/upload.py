@@ -188,18 +188,14 @@ from .common import (  # noqa: F401
     _raise_for_http_error,
     _show_on_top,
     api_get,
-    api_logout,
     api_post_json,
     ensure_logged_in,
     get_base_url,
-    get_download_folder,
-    get_saved_username,
     open_in_browser,
     revision_label,
     sanitize_filename,
-    set_base_url,
-    set_download_folder,
     t,
+    working_folder,
 )
 from .sheet import (  # noqa: F401
     SHEET_FORMATS,
@@ -1575,94 +1571,6 @@ def push_to_existing_item(doc, item_id, confirm_new_revision, target_folder=None
             ) from exc
         raise
 
-class TargetFolderDialog(QtWidgets.QDialog):
-    """Jedyne natywne okno z polami w całym przebiegu run() — pyta o folder, do
-    którego mają trafiać lokalne kopie (Save As) wysyłanych dokumentów — pokazywane RAZ, na
-    samym początku, PRZED jakimkolwiek przetwarzaniem (żeby objęło też automatycznie
-    wykryte drzewo złożenia, wysyłane wcześniej niż cokolwiek innego). Ten sam folder co
-    "Folder docelowy" w download.py (współdzielona preferencja DownloadFolder)
-    — dzięki temu wysłane i pobrane pliki mogą lądować w tym samym, jednym miejscu. Trzyma
-    też Adres API i informację o koncie (przeniesione tu z dawnego głównego okna "Wyślij do
-    PDM", które już nie istnieje — wybór nowy/istniejący i wszystko dalsze dzieje się teraz
-    w przeglądarce, zob. submit_via_browser) — to jedyne miejsce w całym przebiegu, gdzie
-    można zmienić adres serwera albo się wylogować."""
-
-    def __init__(self, doc, parent=None):
-        super().__init__(parent)
-        self.result_folder = None
-
-        self.setWindowTitle(t("target_folder_dialog_title"))
-        self.setMinimumWidth(440)
-
-        layout = QtWidgets.QVBoxLayout(self)
-
-        top_form = QtWidgets.QFormLayout()
-        layout.addLayout(top_form)
-
-        self.server_edit = QtWidgets.QLineEdit(get_base_url())
-        top_form.addRow(t("api_address_label"), self.server_edit)
-
-        account_row = QtWidgets.QHBoxLayout()
-        self.account_label = QtWidgets.QLabel(t("logged_in_as", name=get_saved_username() or "?"))
-        account_row.addWidget(self.account_label)
-        logout_btn = QtWidgets.QPushButton(t("logout_button"))
-        logout_btn.clicked.connect(self.on_logout)
-        account_row.addWidget(logout_btn)
-        account_row.addStretch(1)
-        top_form.addRow(t("account_label"), account_row)
-
-        layout.addWidget(QtWidgets.QLabel(t("target_folder_hint")))
-
-        row = QtWidgets.QHBoxLayout()
-        default_folder = get_download_folder() or (os.path.dirname(doc.FileName) if doc.FileName else "")
-        self.folder_edit = QtWidgets.QLineEdit(default_folder)
-        row.addWidget(self.folder_edit)
-        browse_btn = QtWidgets.QPushButton("...")
-        browse_btn.setMaximumWidth(32)
-        browse_btn.clicked.connect(self.on_browse)
-        row.addWidget(browse_btn)
-        layout.addLayout(row)
-
-        self.error_label = QtWidgets.QLabel("")
-        self.error_label.setStyleSheet("color: #c0392b;")
-        self.error_label.setWordWrap(True)
-        layout.addWidget(self.error_label)
-
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        buttons.accepted.connect(self._try_accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
-
-    def on_logout(self):
-        api_logout()
-        QtWidgets.QMessageBox.information(
-            self, t("pdm_title"), t("logged_out_message")
-        )
-        self.reject()
-
-    def on_browse(self):
-        start = self.folder_edit.text().strip() or os.path.expanduser("~")
-        chosen = QtWidgets.QFileDialog.getExistingDirectory(self, t("choose_target_folder_caption"), start)
-        if chosen:
-            self.folder_edit.setText(chosen)
-
-    def _try_accept(self):
-        set_base_url(self.server_edit.text().strip())
-        folder = self.folder_edit.text().strip()
-        if not folder:
-            self.error_label.setText(t("indicate_folder"))
-            return
-        try:
-            os.makedirs(folder, exist_ok=True)
-        except OSError as e:
-            self.error_label.setText(t("cannot_use_folder", error=e))
-            return
-        set_download_folder(folder)
-        self.result_folder = folder
-        self.accept()
-
 def _ask_yes_no(text, default_yes):
     """Pytanie Tak/Nie, które zawsze leży NAD oknem FreeCAD.
 
@@ -2392,14 +2300,13 @@ def run():
             QtWidgets.QMessageBox.critical(None, t("pdm_title"), t("save_failed", error=e))
             return
 
-    # Krok 1a-0: folder docelowy dla lokalnych kopii (Save As) — pytamy RAZ, na samym
-    # początku, przed process_assembly_tree (które dla automatycznie wykrytego drzewa i tak
-    # wysyła części WCZEŚNIEJ niż otworzy się główne okno) — dzięki temu wszystkie
-    # komponenty (części + finalne złożenie) lądują w TYM SAMYM, jednym folderze.
-    folder_dialog = TargetFolderDialog(doc)
-    if folder_dialog.exec() != QtWidgets.QDialog.Accepted:
+    # Krok 1a-0: folder docelowy dla lokalnych kopii (Save As) — ten z preferencji (Edit >
+    # Preferences > EasyPDM > Download folder), wspólny z pobieraniem; pytany tylko raz, póki
+    # nie jest ustawiony. Ustalany na samym początku, przed process_assembly_tree, żeby
+    # wszystkie komponenty (części + finalne złożenie) lądowały w TYM SAMYM folderze.
+    target_folder = working_folder(os.path.dirname(doc.FileName))
+    if target_folder is None:
         return
-    target_folder = folder_dialog.result_folder
 
     # Od tego miejsca pliki na dysku mogą już zmieniać nazwy (Save As komponentów w
     # process_assembly_tree), więc zwykły zapis na koniec musi przyjść NIEZALEŻNIE od tego,

@@ -59,6 +59,24 @@ def get_download_folder():
 def set_download_folder(folder):
     App.ParamGet(PARAM_GROUP).SetString("DownloadFolder", folder or "")
 
+def working_folder(start=None):
+    """The folder uploaded documents are saved into under their PDM name and downloads go to:
+    Download folder in Edit > Preferences > EasyPDM. Asked once, with the system's folder
+    picker, while it is not set yet. None when the person cancels or it cannot be used."""
+    folder = get_download_folder()
+    if not folder:
+        folder = QtWidgets.QFileDialog.getExistingDirectory(
+            _main_window(), t("choose_working_folder_caption"), start or os.path.expanduser("~"))
+        if not folder:
+            return None
+    try:
+        os.makedirs(folder, exist_ok=True)
+    except OSError as e:
+        QtWidgets.QMessageBox.critical(_main_window(), t("pdm_title"), t("cannot_use_folder", error=e))
+        return None
+    set_download_folder(folder)
+    return folder
+
 def _auth_headers():
     token = get_session_token()
     return {"Cookie": f"{SESSION_COOKIE_NAME}={token}"} if token else {}
@@ -128,8 +146,13 @@ def ensure_logged_in():
             # błąd i tak wypłynie czytelnie przy pierwszym realnym wywołaniu API.
             return True
 
-    dlg = LoginDialog()
-    return dlg.exec() == QtWidgets.QDialog.Accepted
+    # Not signed in (or the token is no longer valid): the add-on's own sign-in, approved in the
+    # browser, the same as EasyPDM > Log in -- with the password dialog as its fallback for
+    # servers older than 0.9.
+    from . import easypdm_addon
+
+    easypdm_addon.log_in()
+    return bool(get_session_token())
 
 def sanitize_filename(name):
     cleaned = re.sub(r'[\\/:*?"<>|]+', "_", name).strip()
@@ -467,15 +490,8 @@ TRANSLATIONS = {
     "no_button": "No",
     "login_missing_fields": "Enter your username and password.",
     "sheet_ask_existing_page": "The document has the drawing page \"{page}\" without the EasyPDM sheet.\n\nPut the EasyPDM sheet on it, with the title block filled in from PDM? Its views stay.",
-    "target_folder_dialog_title": "Send to PDM",
-    "logged_in_as": "Logged in as: {name}",
-    "logout_button": "Log out",
-    "account_label": "Account:",
-    "target_folder_hint": "Where should local copies of uploaded documents go (the same file under the PDM name, instead of the original)? This is the same location as the download folder (Download) — it's a good idea to set them the same.",
-    "choose_target_folder_caption": "Choose target folder",
-    "indicate_folder": "Choose a folder.",
     "cannot_use_folder": "Cannot use this folder: {error}",
-    "logged_out_message": "Logged out. The next upload or download will ask you to log in again.",
+    "choose_working_folder_caption": "EasyPDM: folder for downloaded and uploaded files (Edit > Preferences > EasyPDM changes it later)",
     "new_revision_title": "New revision",
     "new_revision_body": "This item has the status \"Released\" — files cannot be added to it.\n\nDo you want to create a new revision (the status will change to \"In progress\")?",
     "revision_comment_label": "Revision comment (optional):",
@@ -489,7 +505,6 @@ TRANSLATIONS = {
     "export_pdf_prompt": "Export and upload a PDF file?",
     "new_component_browser_prompt": "New component in the tree: {name}. Click OK to open the browser and fill it in (it may open in the background — check the taskbar).",
     "fetch_items_failed": "Failed to fetch the list of items: {error}",
-    "fetch_projects_failed": "Failed to fetch the list of projects: {error}",
     "upload_component_failed": "Failed to send {file}: {error}",
     "link_child_failed": "Created {child}, but failed to link it under {parent}: {error}",
     "open_browser_failed": "Failed to open the browser: {error}",
@@ -512,10 +527,6 @@ TRANSLATIONS = {
     "stale_children_confirm": "{count} sub-item(s) of this item exist in PDM, but are no longer in the local assembly structure (removed from the FreeCAD tree since the last upload):\n{lines}\n\nRemove these links from PDM? (The items themselves will NOT be deleted, only their attachment under this assembly.)",
     "easypdm_title": "EasyPDM",
     "easypdm_error_title": "EasyPDM — Error",
-    "download_folder_dialog_title": "Download from PDM",
-    "target_dir_label": "Target folder:",
-    "choose_download_folder_caption": "Choose download folder",
-    "indicate_target_folder": "Choose a target folder.",
     "log_cancelled_not_opened": "Cancelled in the browser — the files downloaded so far are in the folder; the document was not opened.",
     "wait_ticket_status_download": "EasyPDM: waiting for an item to be picked in the browser...",
     "log_no_attachments_list": "  {label}: failed to fetch the attachment list ({error}).",

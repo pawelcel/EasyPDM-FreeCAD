@@ -100,17 +100,14 @@ from .common import (  # noqa: F401
     _show_on_top,
     api_get,
     api_get_binary,
-    api_logout,
     api_post_json,
     ensure_logged_in,
     get_base_url,
-    get_download_folder,
-    get_saved_username,
     open_in_browser,
     revision_label,
     sanitize_filename,
-    set_download_folder,
     t,
+    working_folder,
 )
 from .sheet import (  # noqa: F401
     refresh_sheets,
@@ -459,82 +456,6 @@ def _download_children_recursive(item, target_dir, log, seen, downloaded=None):
         if child["itemType"] == "assembly":
             _download_children_recursive(child, target_dir, log, seen, downloaded)
 
-class DownloadFolderDialog(QtWidgets.QDialog):
-    """Jedyne natywne okno w całym przebiegu main() — pyta o folder docelowy (gdzie mają
-    wylądować pobrane pliki) i pokazuje konto/Wyloguj. Wybór KTÓREGO elementu pobrać zapada
-    w przeglądarce (zob. build_browser_download_url/main) — folder to jedyna rzecz, której
-    przeglądarka nie może sama ustalić (wybór lokalnego miejsca zapisu wymaga natywnego
-    okna systemowego)."""
-
-    def __init__(self, parent=None):
-        super().__init__(parent)
-        self.result_folder = None
-
-        self.setWindowTitle(t("download_folder_dialog_title"))
-        self.setMinimumWidth(440)
-
-        outer = QtWidgets.QVBoxLayout(self)
-        form = QtWidgets.QFormLayout()
-        outer.addLayout(form)
-
-        account_row = QtWidgets.QHBoxLayout()
-        self.account_label = QtWidgets.QLabel(t("logged_in_as", name=get_saved_username() or "?"))
-        account_row.addWidget(self.account_label)
-        logout_btn = QtWidgets.QPushButton(t("logout_button"))
-        logout_btn.clicked.connect(self.on_logout)
-        account_row.addWidget(logout_btn)
-        account_row.addStretch(1)
-        form.addRow(t("account_label"), account_row)
-
-        folder_row = QtWidgets.QHBoxLayout()
-        self.folder_edit = QtWidgets.QLineEdit(get_download_folder() or "")
-        folder_row.addWidget(self.folder_edit)
-        browse_btn = QtWidgets.QPushButton("...")
-        browse_btn.setMaximumWidth(32)
-        browse_btn.clicked.connect(self.on_browse)
-        folder_row.addWidget(browse_btn)
-        form.addRow(t("target_dir_label"), folder_row)
-
-        self.error_label = QtWidgets.QLabel("")
-        self.error_label.setStyleSheet("color: #c0392b;")
-        self.error_label.setWordWrap(True)
-        outer.addWidget(self.error_label)
-
-        buttons = QtWidgets.QDialogButtonBox(
-            QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-        )
-        buttons.accepted.connect(self.on_submit)
-        buttons.rejected.connect(self.reject)
-        outer.addWidget(buttons)
-
-    def on_logout(self):
-        api_logout()
-        QtWidgets.QMessageBox.information(
-            self, t("pdm_title"), t("logged_out_message")
-        )
-        self.reject()
-
-    def on_browse(self):
-        start = self.folder_edit.text().strip() or os.path.expanduser("~")
-        chosen = QtWidgets.QFileDialog.getExistingDirectory(self, t("choose_download_folder_caption"), start)
-        if chosen:
-            self.folder_edit.setText(chosen)
-
-    def on_submit(self):
-        self.error_label.setText("")
-        folder = self.folder_edit.text().strip()
-        if not folder:
-            self.error_label.setText(t("indicate_target_folder"))
-            return
-        try:
-            os.makedirs(folder, exist_ok=True)
-        except OSError as e:
-            self.error_label.setText(t("cannot_use_folder", error=e))
-            return
-        set_download_folder(folder)
-        self.result_folder = folder
-        self.accept()
-
 def wait_for_ticket(ticket, timeout_seconds=600, raise_browser=False):
     """Czeka, aż element zostanie wskazany w przeglądarce — BEZ własnego okna. Odpowiednik
     (celowo zduplikowany, zob. LoginDialog wyżej) funkcji o tej samej nazwie w
@@ -661,12 +582,12 @@ def main():
     if not ensure_logged_in():
         return
 
-    # Jedyne natywne okno w całym przebiegu — folder docelowy + konto. KTÓRY element
-    # pobrać wybiera się w przeglądarce (zob. build_browser_download_url), nie tutaj.
-    folder_dialog = DownloadFolderDialog()
-    if folder_dialog.exec() != QtWidgets.QDialog.Accepted:
+    # Folder z preferencji (Edit > Preferences > EasyPDM > Download folder), pytany tylko raz,
+    # póki nie jest ustawiony. KTÓRY element pobrać wybiera się w przeglądarce (zob.
+    # build_browser_download_url), nie tutaj.
+    target_dir = working_folder()
+    if target_dir is None:
         return
-    target_dir = folder_dialog.result_folder
 
     ticket = str(uuid.uuid4())
     try:

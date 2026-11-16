@@ -331,49 +331,14 @@ Put the EasyPDM sheet on it, with the title block filled in from PDM? Its views 
 Wstawić na nią arkusz EasyPDM z tabelką wypełnianą z PDM? Widoki zostają.</translation>
     </message>
     <message>
-        <source>Send to PDM</source>
-        <comment>target_folder_dialog_title</comment>
-        <translation>Wyślij do PDM</translation>
-    </message>
-    <message>
-        <source>Logged in as: {name}</source>
-        <comment>logged_in_as</comment>
-        <translation>Zalogowano jako: {name}</translation>
-    </message>
-    <message>
-        <source>Log out</source>
-        <comment>logout_button</comment>
-        <translation>Wyloguj</translation>
-    </message>
-    <message>
-        <source>Account:</source>
-        <comment>account_label</comment>
-        <translation>Konto:</translation>
-    </message>
-    <message>
-        <source>Where should local copies of uploaded documents go (the same file under the PDM name, instead of the original)? This is the same location as the download folder (Download) — it's a good idea to set them the same.</source>
-        <comment>target_folder_hint</comment>
-        <translation>Gdzie mają trafić lokalne kopie wysyłanych dokumentów (ten sam plik pod nazwą PDM, zamiast oryginalnej)? To samo miejsce co folder pobierania (Download) — warto ustawić jednakowo.</translation>
-    </message>
-    <message>
-        <source>Choose target folder</source>
-        <comment>choose_target_folder_caption</comment>
-        <translation>Wybierz folder docelowy</translation>
-    </message>
-    <message>
-        <source>Choose a folder.</source>
-        <comment>indicate_folder</comment>
-        <translation>Wskaż folder.</translation>
-    </message>
-    <message>
         <source>Cannot use this folder: {error}</source>
         <comment>cannot_use_folder</comment>
         <translation>Nie można użyć tego folderu: {error}</translation>
     </message>
     <message>
-        <source>Logged out. The next upload or download will ask you to log in again.</source>
-        <comment>logged_out_message</comment>
-        <translation>Wylogowano. Kolejne wysłanie lub pobranie poprosi o ponowne zalogowanie.</translation>
+        <source>EasyPDM: folder for downloaded and uploaded files (Edit &gt; Preferences &gt; EasyPDM changes it later)</source>
+        <comment>choose_working_folder_caption</comment>
+        <translation>EasyPDM: folder na pobierane i wysyłane pliki (później zmienisz go w Edycja &gt; Preferencje &gt; EasyPDM)</translation>
     </message>
     <message>
         <source>New revision</source>
@@ -459,11 +424,6 @@ Wysłać je automatycznie razem z tym dokumentem (najpierw części/pod-złożen
         <source>Failed to fetch the list of items: {error}</source>
         <comment>fetch_items_failed</comment>
         <translation>Nie udało się pobrać listy elementów: {error}</translation>
-    </message>
-    <message>
-        <source>Failed to fetch the list of projects: {error}</source>
-        <comment>fetch_projects_failed</comment>
-        <translation>Nie udało się pobrać listy projektów: {error}</translation>
     </message>
     <message>
         <source>Failed to send {file}: {error}</source>
@@ -596,26 +556,6 @@ Usunąć te powiązania z PDM? (Same elementy NIE zostaną skasowane, tylko ich 
         <source>EasyPDM — Error</source>
         <comment>easypdm_error_title</comment>
         <translation>EasyPDM — błąd</translation>
-    </message>
-    <message>
-        <source>Download from PDM</source>
-        <comment>download_folder_dialog_title</comment>
-        <translation>Pobierz z PDM</translation>
-    </message>
-    <message>
-        <source>Target folder:</source>
-        <comment>target_dir_label</comment>
-        <translation>Folder docelowy:</translation>
-    </message>
-    <message>
-        <source>Choose download folder</source>
-        <comment>choose_download_folder_caption</comment>
-        <translation>Wybierz folder pobierania</translation>
-    </message>
-    <message>
-        <source>Choose a target folder.</source>
-        <comment>indicate_target_folder</comment>
-        <translation>Wskaż folder docelowy.</translation>
     </message>
     <message>
         <source>Cancelled in the browser — the files downloaded so far are in the folder; the document was not opened.</source>
