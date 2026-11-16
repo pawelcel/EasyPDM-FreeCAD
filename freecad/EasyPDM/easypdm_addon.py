@@ -587,7 +587,13 @@ def _sync_menu(*_):
         if action is ours or action.text().replace("&", "") == "EasyPDM":
             _decorate_menus(bar)
             return
-    menu = QtWidgets.QMenu("&EasyPDM", mw)
+    global _global_menu
+    if _global_menu is not None:
+        # Built before and taken off the bar by FreeCAD: put the same menu back.
+        _insert_menu(bar, _global_menu)
+        _decorate_menus(bar)
+        return
+    menu = _global_menu = QtWidgets.QMenu("&EasyPDM", mw)
     menu.menuAction().setObjectName("EasyPDM_Menu")
     for name, command in COMMANDS:
         if name in _GROUP_STARTS:
@@ -597,12 +603,44 @@ def _sync_menu(*_):
         action.setToolTip(res["ToolTip"])
         action.setObjectName(name)  # found again by _show_command
         action.triggered.connect(lambda checked=False, n=name: Gui.runCommand(n))
+    _insert_menu(bar, menu)
+    _decorate_menus(bar)
+
+
+_global_menu = None
+
+
+def _insert_menu(bar, menu):
     help_action = next((a for a in bar.actions() if a.text().replace("&", "").lower() in ("help", "pomoc", "hilfe")), None)
     if help_action is not None:
         bar.insertMenu(help_action, menu)
     else:
         bar.addMenu(menu)
-    _decorate_menus(bar)
+
+
+class _MenuBarWatch(QtCore.QObject):
+    """Puts the menu back whenever FreeCAD rebuilds the menu bar.
+
+    workbenchActivated alone is not enough: opening a document from the start page activates
+    the document's workbench and then rebuilds the bar once more, after that signal, which took
+    the EasyPDM menu away again until the next switch of workbench. A rebuild always starts by
+    removing the bar's actions, so any removal schedules one sync, run once the rebuild is done."""
+
+    _REMOVED = getattr(QtCore.QEvent, "ActionRemoved", None) or QtCore.QEvent.Type.ActionRemoved
+
+    def __init__(self, bar):
+        super().__init__(bar)
+        self._pending = False
+
+    def eventFilter(self, watched, event):
+        if event.type() == self._REMOVED and not self._pending:
+            self._pending = True
+            QtCore.QTimer.singleShot(0, self._sync)
+        return False
+
+    def _sync(self):
+        self._pending = False
+        _sync_menu_and_buttons()
 
 
 def _sync_menu_and_buttons(*_):
@@ -612,9 +650,15 @@ def _sync_menu_and_buttons(*_):
     show_account()
 
 
+_menu_watch = None
+
+
 def install_menu():
+    global _menu_watch
     mw = Gui.getMainWindow()
     mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _sync_menu_and_buttons))
+    _menu_watch = _MenuBarWatch(mw.menuBar())
+    mw.menuBar().installEventFilter(_menu_watch)
     QtCore.QTimer.singleShot(0, _sync_menu_and_buttons)
 
 
