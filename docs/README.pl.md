@@ -30,15 +30,12 @@ albo ręcznie do folderu `Mod`). Jego **Upload** i **Download** to to, co opisuj
 
 ## Logowanie
 
-EasyPDM.Api wymaga zalogowania dla każdego wywołania poza samym logowaniem — makro więc
-też się loguje. Przy pierwszym uruchomieniu (albo gdy zapisana sesja wygasła lub została
-unieważniona) pojawia się okno logowania (nazwa użytkownika + hasło, te same konta co
-w aplikacji webowej). Token sesji trafia do tych samych preferencji FreeCAD co adres API,
-więc **kolejne uruchomienia makra — także po restarcie FreeCAD — NIE proszą o ponowne
-logowanie**, dopóki sesja jest ważna (30 dni, tak samo jak w aplikacji webowej). W oknie
-"Wyślij do PDM" widać, kto jest zalogowany, i można się stamtąd **wylogować** (przycisk
-"Wyloguj") — unieważnia to sesję po stronie serwera i czyści lokalnie zapisany token, więc
-kolejne uruchomienie makra od razu poprosi o ponowne zalogowanie.
+EasyPDM.Api wymaga zalogowania dla każdego wywołania poza samym logowaniem. Logujesz się z
+menu EasyPDM (zatwierdzając w przeglądarce); jeśli uruchomisz Upload albo Download bez
+zalogowania albo po wygaśnięciu sesji, najpierw uruchomią to samo logowanie. Logowanie jest
+trzymane w systemowym magazynie haseł, więc **kolejne uruchomienia — także po restarcie
+FreeCAD — NIE proszą o ponowne logowanie**, dopóki sesja jest ważna. EasyPDM → Wyloguj (albo
+Edycja → Preferencje → EasyPDM) unieważnia sesję na serwerze i zapomina zapisany token.
 
 **Dlaczego makro w ogóle potrzebuje własnej sesji, skoro decyzja nowy/istniejący i cały
 formularz są w przeglądarce?** Bo makro samo musi się cały czas potrafić uwierzytelnić,
@@ -56,12 +53,10 @@ dwie osobne.
 
 1. **Zapisuje aktywny dokument** — jeśli dokument nie miał jeszcze nadanej ścieżki na dysku,
    makro poprosi o "Zapisz jako" (standardowe okno FreeCAD), zanim cokolwiek wyśle.
-1a. **Pyta o folder docelowy** dla lokalnych kopii (Save As) wszystkich dokumentów wysyłanych
-    w tej sesji (patrz krok 3 niżej) — domyślnie podpowiada ostatnio użyty (**współdzielona
-    preferencja z **Download**** — ustaw ten sam folder w obu makrach, żeby
-    wysłane i pobrane pliki lądowały razem w jednym miejscu). Pytane RAZ, na samym początku —
-    obejmuje też automatycznie wykryte drzewo złożenia (część/pod-złożenia wysyłane wcześniej
-    niż otwiera się główne okno).
+1a. **Używa folderu pobierania** z Edycja → Preferencje → EasyPDM dla lokalnych kopii (Save
+    As) wszystkich dokumentów wysyłanych w tym przebiegu (patrz krok 3 niżej) — tego samego
+    co Download, więc wysłane i pobrane pliki lądują razem. Tylko dopóki nie jest ustawiony,
+    systemowe okno wyboru folderu pyta o niego raz.
 1b. **Lokalny skrót dla już rozpoznanego dokumentu.** FreeCAD nie ma trwałego odpowiednika
     Właściwości niestandardowej `EasyPDM_ItemId` z makra SolidWorks (patrz README makra
     SolidWorks po opis tego mechanizmu) — zamiast tego, jeśli **etykieta** dokumentu
@@ -371,14 +366,13 @@ Drugie makro: zamiast wysyłać, **pobiera** Część/Złożenie z EasyPDM i od 
 w FreeCAD. Logowanie i adres API są dokładnie tak samo skonfigurowane jak w
 **Upload** (te same preferencje FreeCAD) — osobna instalacja/uruchomienie
 (patrz "Instalacja" wyżej), ale wspólna sesja. Tak jak w **Upload**, wybór
-elementu zapada w **przeglądarce systemowej**, nie w natywnym oknie — makro pyta lokalnie
-TYLKO o folder docelowy.
+elementu zapada w **przeglądarce systemowej**, nie w natywnym oknie, a folder to ten z
+Edycja → Preferencje → EasyPDM.
 
 ## Co robi
 
-1. Natywne okno pyta TYLKO o folder docelowy (domyślnie podpowiada ostatnio użyty, osobna
-   preferencja FreeCAD `DownloadFolder`, z przyciskiem **"..."** do zmiany) i pokazuje
-   konto/**Wyloguj**. Po zatwierdzeniu makro od razu otwiera **przeglądarkę systemową**, już
+1. Download bierze folder z Edycja → Preferencje → EasyPDM (pytając raz, systemowym oknem
+   wyboru folderu, tylko dopóki nie jest ustawiony) i od razu otwiera **przeglądarkę systemową**, już
    zalogowaną (most token→ciasteczko), na pasku "oczekuje żądanie pobrania z makra CAD"
    (widoczny na każdym ekranie aplikacji webowej) — tam dopiero wyszukuje się Część/Złożenie
    z **całej bazy** (po numerze albo nazwie) i zatwierdza wybór. FreeCAD (odpytując co ~2 s, z

@@ -32,16 +32,13 @@ beschreibt (`freecad/EasyPDM/upload.py` und `download.py`, mit `common.py` und `
 
 ## Anmeldung
 
-EasyPDM.Api erfordert für jeden Aufruf außer der Anmeldung selbst eine Anmeldung — also
-meldet sich auch das Makro an. Beim ersten Start (oder wenn die gespeicherte Sitzung
-abgelaufen oder ungültig gemacht wurde) erscheint ein Anmeldefenster (Benutzername +
-Passwort, dieselben Konten wie in der Web-Anwendung). Das Sitzungstoken landet in
-denselben FreeCAD-Einstellungen wie die API-Adresse, sodass **spätere Makro-Läufe — auch
-nach einem FreeCAD-Neustart — NICHT erneut nach der Anmeldung fragen**, solange die
-Sitzung gültig ist (30 Tage, genau wie in der Web-Anwendung). Im Fenster "An PDM senden"
-sieht man, wer angemeldet ist, und kann sich von dort aus **abmelden** (Schaltfläche
-"Abmelden") — dies macht die Sitzung serverseitig ungültig und löscht das lokal
-gespeicherte Token, sodass der nächste Makro-Lauf sofort wieder zur Anmeldung auffordert.
+EasyPDM.Api erfordert für jeden Aufruf außer der Anmeldung selbst eine Anmeldung. Sie melden
+sich über das EasyPDM-Menü an (im Browser bestätigt); starten Sie Upload oder Download ohne
+Anmeldung oder nach Ablauf der Sitzung, beginnen sie zuerst mit derselben Anmeldung. Die
+Anmeldung liegt im Passwortspeicher des Systems, sodass **spätere Läufe — auch nach einem
+FreeCAD-Neustart — NICHT erneut nach der Anmeldung fragen**, solange die Sitzung gültig ist.
+EasyPDM → Abmelden (oder Bearbeiten → Einstellungen → EasyPDM) macht die Sitzung auf dem
+Server ungültig und vergisst das gespeicherte Token.
 
 **Warum braucht das Makro überhaupt eine eigene Sitzung, wenn die Entscheidung
 neu/vorhanden und das gesamte Formular im Browser liegen?** Weil sich das Makro selbst die
@@ -62,13 +59,10 @@ getrennte.
 1. **Speichert das aktive Dokument** — falls das Dokument noch keinen Pfad auf der
    Festplatte hatte, fragt das Makro nach "Speichern unter" (der Standard-FreeCAD-Dialog),
    bevor irgendetwas gesendet wird.
-1a. **Fragt nach dem Zielordner** für lokale Kopien (Speichern unter) aller in dieser
-    Sitzung gesendeten Dokumente (siehe Schritt 3 unten) — standardmäßig wird der zuletzt
-    verwendete vorgeschlagen (**eine mit **Download** geteilte
-    Einstellung** — stellen Sie in beiden Makros denselben Ordner ein, damit gesendete und
-    heruntergeladene Dateien zusammen an einem Ort landen). Wird EINMAL, ganz am Anfang,
-    gefragt — dies deckt auch den automatisch erkannten Baugruppenbaum ab (Teile/
-    Unterbaugruppen, die vor dem Öffnen des Hauptfensters gesendet werden).
+1a. **Verwendet den Download-Ordner** aus Bearbeiten → Einstellungen → EasyPDM für lokale
+    Kopien (Speichern unter) aller in diesem Lauf gesendeten Dokumente (siehe Schritt 3
+    unten) — denselben wie Download, sodass gesendete und heruntergeladene Dateien zusammen
+    landen. Nur solange er nicht gesetzt ist, fragt die Ordnerauswahl des Systems einmal danach.
 1b. **Lokale Abkürzung für ein bereits erkanntes Dokument.** FreeCAD hat kein
     dauerhaftes Äquivalent zur Custom Property `EasyPDM_ItemId` des SolidWorks-Makros
     (siehe die README des SolidWorks-Makros für diesen Mechanismus) — stattdessen fragt
@@ -416,14 +410,14 @@ Das zweite Makro: Anstatt zu senden, **lädt** es ein Teil/eine Baugruppe aus Ea
 genauso konfiguriert wie in **Upload** (dieselben FreeCAD-Einstellungen) —
 separate Installation/Ausführung (siehe "Installation" oben), aber eine gemeinsame
 Sitzung. Wie in **Upload** fällt die Wahl des Elements im **System-Browser**,
-nicht in einem nativen Fenster — das Makro fragt lokal NUR nach dem Zielordner.
+nicht in einem nativen Fenster, und der Ordner ist der aus Bearbeiten → Einstellungen →
+EasyPDM.
 
 ## Was es tut
 
-1. Ein natives Fenster fragt NUR nach dem Zielordner (standardmäßig wird der zuletzt
-   verwendete vorgeschlagen, eine separate FreeCAD-Einstellung `DownloadFolder`, mit
-   einer Schaltfläche **"..."** zum Ändern) und zeigt das Konto/**Abmelden** an. Nach der
-   Bestätigung öffnet das Makro sofort den **System-Browser**, bereits angemeldet
+1. Download nimmt den Ordner aus Bearbeiten → Einstellungen → EasyPDM (fragt einmal mit der
+   Ordnerauswahl des Systems, nur solange er nicht gesetzt ist) und öffnet sofort
+   den **System-Browser**, bereits angemeldet
    (Token→Cookie-Brücke), auf einer Leiste, die "eine Download-Anfrage von einem
    CAD-Makro wartet" anzeigt (sichtbar auf jedem Bildschirm der Web-Anwendung) — erst dort
    wird ein Teil/eine Baugruppe aus der **gesamten Datenbank** gesucht (nach Nummer oder

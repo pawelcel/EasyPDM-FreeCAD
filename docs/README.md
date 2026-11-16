@@ -30,15 +30,12 @@ or by hand into the `Mod` folder). Its **Upload** and **Download** are what this
 
 ## Login
 
-EasyPDM.Api requires being logged in for every call except login itself — so the macro
-also logs in. On the first run (or when the saved session has expired or been
-invalidated), a login window appears (username + password, the same accounts as in the
-web application). The session token goes into the same FreeCAD preferences as the API
-address, so **subsequent macro runs — even after restarting FreeCAD — do NOT ask to log
-in again**, as long as the session is valid (30 days, same as in the web application). The
-"Send to PDM" window shows who is logged in, and lets you **log out** from there (the "Log
-out" button) — this invalidates the session on the server side and clears the locally
-saved token, so the next macro run immediately asks to log in again.
+EasyPDM.Api requires being logged in for every call except login itself. Log in from the
+EasyPDM menu (approved in the browser); if you run Upload or Download while not signed in, or
+the session has expired, they start that same sign-in first. The login is kept in the system's
+secret storage, so **later runs — even after restarting FreeCAD — do NOT ask to log in
+again** while the session is valid. EasyPDM → Log out (or Edit → Preferences → EasyPDM)
+invalidates the session on the server and forgets the saved token.
 
 **Why does the macro need its own session at all, if the new/existing decision and the
 whole form live in the browser?** Because the macro itself must be able to authenticate
@@ -58,12 +55,10 @@ operation**, not two separate ones.
 1. **Saves the active document** — if the document doesn't yet have a path on disk, the
    macro will ask for "Save as" (the standard FreeCAD dialog) before sending anything.
 
-1a. **Asks for the target folder** for local copies (Save As) of all documents sent
-    during this session (see step 3 below) — by default it suggests the last one used
-    (**a preference shared with **Download**** — set the same folder in both
-    macros so uploaded and downloaded files end up together in one place). Asked ONCE,
-    right at the start — this also covers the automatically detected assembly tree
-    (parts/sub-assemblies sent before the main window even opens).
+1a. **Uses the download folder** from Edit → Preferences → EasyPDM for local copies (Save
+    As) of all documents sent in this run (see step 3 below) — the same folder Download uses,
+    so uploaded and downloaded files end up together. Only while it is not set yet does the
+    system's folder picker ask for it, once.
 
 1b. **Local shortcut for an already-recognized document.** FreeCAD has no persistent
     Custom-Property equivalent to SolidWorks' `EasyPDM_ItemId` (see the SolidWorks macro
@@ -394,13 +389,12 @@ The second macro: instead of uploading, it **downloads** a Part/Assembly from Ea
 the same way as in **Upload** (the same FreeCAD preferences) — a separate
 install/run (see "Installation" above), but a shared session. Just as in
 **Upload**, the item choice is made in the **system browser**, not in a
-native window — the macro only asks locally about the target folder.
+native window — and the folder is the one in Edit → Preferences → EasyPDM.
 
 ## What it does
 
-1. A native window only asks about the target folder (by default suggesting the last one
-   used, a separate FreeCAD preference `DownloadFolder`, with a **"..."** button to
-   change it) and shows the account/**Log out**. Once confirmed, the macro immediately
+1. Download takes the folder from Edit → Preferences → EasyPDM (asking once, with the
+   system's folder picker, only while it is not set) and immediately
    opens the **system browser**, already logged in (token→cookie bridge), on a bar
    saying "a download request from a CAD macro is pending" (visible on every screen of
    the web application) — only there do you search for a Part/Assembly from the **whole
