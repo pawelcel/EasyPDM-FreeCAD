@@ -10,6 +10,14 @@ the macros were released with EasyPDM itself; see the
 
 **In short:** the first release of EasyPDM for FreeCAD as a workbench of its own, in place of the macros. Upload, Download, Log in and Log out from the EasyPDM menu and toolbar; a document panel beside the model tree with the item's record, revision, status and lock, and for an assembly the tree of its components marked current or outdated; an Upload that refuses work built on outdated files; the login kept in the system's secret storage; English, Polish and German.
 
+![The EasyPDM workbench in FreeCAD: its menu, its toolbar and the document panel](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD/images/workbench.png)
+
+![The document panel for an assembly: one component has a newer file in EasyPDM](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD/images/panel-assembly.png)
+
+![Upload refusing to send work built on an outdated component](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD/images/upload-blocked.png)
+
+Step by step, with screenshots of where everything is: [the wiki](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki).
+
 **Install:** Edit → Preferences → Addon Manager → Custom repositories, add `https://github.com/pawelcel/EasyPDM-FreeCAD` with branch `main`, then install EasyPDM in the Addon Manager and restart FreeCAD; or unpack the zip below into FreeCAD's `Mod` folder. Works with any EasyPDM server; signing in through the browser, "Open in browser" on the item itself and the outdated-component check need [EasyPDM 0.9](https://github.com/pawelcel/EasyPDM/releases).
 
 ### Added
