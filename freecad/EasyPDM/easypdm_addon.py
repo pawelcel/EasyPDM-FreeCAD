@@ -587,13 +587,9 @@ def _sync_menu(*_):
         if action is ours or action.text().replace("&", "") == "EasyPDM":
             _decorate_menus(bar)
             return
-    global _global_menu
-    if _global_menu is not None:
-        # Built before and taken off the bar by FreeCAD: put the same menu back.
-        _insert_menu(bar, _global_menu)
-        _decorate_menus(bar)
-        return
-    menu = _global_menu = QtWidgets.QMenu("&EasyPDM", mw)
+    # Always a new menu: FreeCAD deletes the menus it takes off the bar on a rebuild, so the
+    # previous one may be gone on the C++ side and cannot be inserted again.
+    menu = QtWidgets.QMenu("&EasyPDM", mw)
     menu.menuAction().setObjectName("EasyPDM_Menu")
     for name, command in COMMANDS:
         if name in _GROUP_STARTS:
@@ -605,9 +601,6 @@ def _sync_menu(*_):
         action.triggered.connect(lambda checked=False, n=name: Gui.runCommand(n))
     _insert_menu(bar, menu)
     _decorate_menus(bar)
-
-
-_global_menu = None
 
 
 def _insert_menu(bar, menu):
@@ -640,7 +633,14 @@ class _MenuBarWatch(QtCore.QObject):
 
     def _sync(self):
         self._pending = False
+        _safe_sync()
+
+
+def _safe_sync(*_):
+    try:
         _sync_menu_and_buttons()
+    except Exception as e:  # a menu that fails must still leave FreeCAD working, and say why
+        App.Console.PrintError("EasyPDM: could not put the menu back: %s\n" % e)
 
 
 def _sync_menu_and_buttons(*_):
@@ -656,10 +656,10 @@ _menu_watch = None
 def install_menu():
     global _menu_watch
     mw = Gui.getMainWindow()
-    mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _sync_menu_and_buttons))
+    mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _safe_sync))
     _menu_watch = _MenuBarWatch(mw.menuBar())
     mw.menuBar().installEventFilter(_menu_watch)
-    QtCore.QTimer.singleShot(0, _sync_menu_and_buttons)
+    QtCore.QTimer.singleShot(0, _safe_sync)
 
 
 class EasyPDMWorkbench(Gui.Workbench):
