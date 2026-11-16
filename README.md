@@ -72,6 +72,8 @@ The server address and your name are kept in FreeCAD's preferences
 
 ## Documentation
 
+- **[The wiki](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki)**: installing, signing in, the
+  document panel, Upload and Download, with screenshots of where everything is.
 - [CAD Integrations](https://github.com/pawelcel/EasyPDM/wiki/CAD-Integrations) on the EasyPDM wiki
 - [How Upload and Download work](docs/README.md) ([polski](docs/README.pl.md),
   [Deutsch](docs/README.de.md)): assemblies, drawings, drawing sheets, limitations

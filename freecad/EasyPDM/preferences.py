@@ -2,6 +2,8 @@
 # workbench, and where the login is kept, with Log out. FreeCAD calls loadSettings when the page
 # opens and saveSettings on OK/Apply.
 
+import os
+
 import FreeCAD as App
 import FreeCADGui as Gui
 
@@ -80,4 +82,7 @@ class EasyPDMPreferencePage:
 
 
 def register():
+    # FreeCAD shows a preference group with the icon "preferences-<group in lower case>" from its
+    # icon paths, and a question mark without one: icons/preferences-easypdm.svg.
+    Gui.addIconPath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "icons"))
     Gui.addPreferencePage(EasyPDMPreferencePage, "EasyPDM")
