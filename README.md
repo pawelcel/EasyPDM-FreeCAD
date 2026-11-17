@@ -1,5 +1,7 @@
 # EasyPDM for FreeCAD
 
+[<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="136">](https://buymeacoffee.com/easypdm)
+
 An **EasyPDM workbench** for FreeCAD: **Upload** the active document to an
 [EasyPDM](https://github.com/pawelcel/EasyPDM) server, **Download** an item with its whole
 assembly, **Log in** (approved in the browser, so FreeCAD never sees your password) and
