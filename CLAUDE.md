@@ -1,7 +1,8 @@
 # Working on EasyPDM for FreeCAD
 
-Conventions that are easy to miss. The EasyPDM server, web app and the other CAD integrations
-live in [pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM), which has its own CLAUDE.md.
+Conventions that are easy to miss. The EasyPDM server, web app and the Inventor macros live in
+[pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM), the SolidWorks add-in and macros in
+[pawelcel/EasyPDM-SolidWorks](https://github.com/pawelcel/EasyPDM-SolidWorks); each has its own CLAUDE.md.
 
 ## Layout
 
@@ -25,9 +26,9 @@ an unlock window).
 `tools/build_templates.py` is the single source of the EasyPDM drawing sheet. It writes the SVG
 templates in `freecad/EasyPDM/templates/`, writes the shared block between the BEGIN/END SHARED
 markers out as `freecad/EasyPDM/sheet.py` and, with `--solidworks PATH`, writes
-`EasyPDM.SolidWorks/EasyPDMSheetFormat.bas` in a checkout of pawelcel/EasyPDM. Edit the script,
-never its outputs. After a layout change, run it with `--solidworks`, commit the `.bas` there too,
-and rebuild the SolidWorks sheet formats in `EasyPDM.SolidWorks/templates/` on a live SolidWorks.
+`EasyPDMSheetFormat.bas` in a checkout of pawelcel/EasyPDM-SolidWorks. Edit the script, never its
+outputs. After a layout change, run it with `--solidworks`, commit the `.bas` there too, and
+rebuild the SolidWorks sheet formats in that repository's `templates/` on a live SolidWorks.
 CI fails when the committed templates or `sheet.py` differ from what the script writes.
 
 ## Translations

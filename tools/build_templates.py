@@ -2,12 +2,12 @@
 """Builds the EasyPDM drawing sheets: the TechDraw templates (SVG) for FreeCAD and, from the same
 coordinates, the SolidWorks sheet format macro.
 
-    python3 tools/build_templates.py [--solidworks PATH-TO-EASYPDM-REPOSITORY]
+    python3 tools/build_templates.py [--solidworks PATH-TO-EASYPDM-SOLIDWORKS-REPOSITORY]
 
 writes freecad/EasyPDM/templates/EasyPDM_A3/A2/A1_Landscape.svg AND writes the shared block below
 (between the BEGIN/END SHARED markers) out as the add-on's module freecad/EasyPDM/sheet.py, so the
-committed templates and the sheet the add-on builds per drawing come from the same code. With --solidworks it also writes EasyPDM.SolidWorks/EasyPDMSheetFormat.bas
-in a checkout of pawelcel/EasyPDM, where the SolidWorks macros live, so both CAD programs keep the
+committed templates and the sheet the add-on builds per drawing come from the same code. With --solidworks it also writes EasyPDMSheetFormat.bas
+in a checkout of pawelcel/EasyPDM-SolidWorks, where the SolidWorks macros live, so both CAD programs keep the
 same sheet. Edit this file, not the SVG, not sheet.py and not the .bas, then rerun it.
 
 The add-on's upload refreshes the sheet before it saves and sends a document (so the CAD file and
@@ -705,8 +705,9 @@ def write_sheet_module():
 # ---------------------------------------------------------------------------------------
 # SolidWorks: the same sheet drawn through the API by a one-time setup macro
 # ---------------------------------------------------------------------------------------
-# In a checkout of pawelcel/EasyPDM, given with --solidworks.
-SW_MACRO = os.path.join("EasyPDM.SolidWorks", "EasyPDMSheetFormat.bas")
+# In a checkout of pawelcel/EasyPDM-SolidWorks (before 0.9: EasyPDM.SolidWorks/ in
+# pawelcel/EasyPDM), given with --solidworks.
+SW_MACRO = "EasyPDMSheetFormat.bas"
 
 # Fields SolidWorks fills by itself; everything else links to the drawing's own custom
 # property of the same name ($PRP:"pdm_drawn_by"), which the Upload/Download macros write.
@@ -1154,8 +1155,8 @@ def write_solidworks_macro(repository):
 if __name__ == "__main__":
     import argparse
     args = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    args.add_argument("--solidworks", metavar="EASYPDM_REPOSITORY",
-                      help="also write EasyPDM.SolidWorks/EasyPDMSheetFormat.bas in this checkout of pawelcel/EasyPDM")
+    args.add_argument("--solidworks", metavar="EASYPDM_SOLIDWORKS_REPOSITORY",
+                      help="also write EasyPDMSheetFormat.bas in this checkout of pawelcel/EasyPDM-SolidWorks")
     options = args.parse_args()
     for name in SHEET_FORMATS:
         path = os.path.join(PACKAGE, "templates", "EasyPDM_%s_Landscape.svg" % name)
@@ -1166,4 +1167,4 @@ if __name__ == "__main__":
     if options.solidworks:
         write_solidworks_macro(options.solidworks)
     else:
-        print("SolidWorks sheet format not written (give --solidworks PATH to pawelcel/EasyPDM)")
+        print("SolidWorks sheet format not written (give --solidworks PATH to pawelcel/EasyPDM-SolidWorks)")

@@ -710,7 +710,7 @@ def match_existing_item(doc, existing_items):
 def match_existing_item_single(doc):
     """Same check as match_existing_item, for a SINGLE document -- looks the parsed item
     number up directly via GET /items/by-number/{itemNumber} (the same targeted endpoint
-    EasyPDM.SolidWorks/EasyPDM.Inventor use for their drawing-to-item matching) instead of
+    the SolidWorks and Inventor macros use for their drawing-to-item matching) instead of
     downloading the WHOLE item table just to check one document's label. Only worth it here
     because there is exactly one document to check -- process_assembly_tree below still
     fetches the full list once and reuses it across all of an assembly's components, which
@@ -2041,7 +2041,7 @@ def process_assembly_tree(top_doc, target_folder=None):
         return [], True, []
     # "Nie" pomija tworzenie nowych komponentów i aktualizację istniejących -- już
     # podlinkowane i tak trafiają do struktury (podpięcie bez wysyłania pliku), dokładnie
-    # ten sam podział co EasyPDM.SolidWorks/EasyPDMUpload.bas ProcessAssemblyTree.
+    # ten sam podział co EasyPDMUpload.bas ProcessAssemblyTree (EasyPDM-SolidWorks).
     send_new_components = dialog.choice == "yes"
     update_existing = send_new_components and bool(updatable or top_updatable)
     update_step = dialog.export_step()
