@@ -242,8 +242,8 @@ operation**, not two separate ones.
 
 ## Automatic assembly detection
 
-If the active document links (`App::Link` — the standard way of building assemblies in
-the Assembly/Assembly4 workbench) to **other, saved `.FCStd` files**, the macro asks,
+If the active document links (`App::Link` and the native Assembly workbench's links, the
+standard way of building an assembly there) to **other, saved `.FCStd` files**, the macro asks,
 **before** opening the main window, whether to send the whole tree automatically:
 
 - **Detection**: it walks the document's objects, finds `App::Link`s pointing to other
@@ -294,6 +294,25 @@ the Assembly/Assembly4 workbench) to **other, saved `.FCStd` files**, the macro 
   findable via the global "whole database" search, it just stops cluttering the
   structure of a project it no longer has anything to do with (the same mechanism the
   web application's own "Remove from structure" uses).
+
+## Outdated components
+
+While an assembly is being worked on, someone else may upload a newer file of one of its
+components: a new revision, or the same revision overwritten. Upload therefore checks, before it
+sends anything, whether the document and each of its components are the newest files in EasyPDM
+(`structure.py`, `POST /api/items/cad-versions`, EasyPDM servers from 0.9). When one is older,
+it lists them with who uploaded the newer file and when, and sends nothing: the newer files have
+to be downloaded first. The document panel (EasyPDM → Document panel) marks the same components
+beforehand.
+
+Which file a local copy is, the server tells by the **version stamp** Upload writes into the
+document's Meta (`EasyPDM_ContentVersion`) before saving and sending it. It travels with the file
+through Download and stays the same when FreeCAD saves the file again unchanged, which it does
+to components whenever the assembly is saved, so a hash alone would call every one of them
+changed. Files without a stamp (uploaded before 0.9, or by another CAD program) are recognised by
+the SHA-256 of the file on disk, and the revision letter in the label settles what neither can:
+a copy of an older revision is outdated even when the server has never seen its exact bytes. On
+a server older than 0.9 the check is skipped.
 
 ## First-version limitations
 
@@ -386,8 +405,8 @@ registration) is unchanged.
 
 The second macro: instead of uploading, it **downloads** a Part/Assembly from EasyPDM and
 **opens** it in FreeCAD right away. Login and the API address are configured in exactly
-the same way as in **Upload** (the same FreeCAD preferences) — a separate
-install/run (see "Installation" above), but a shared session. Just as in
+the same way as in **Upload** (the same FreeCAD preferences) — a separate command of the
+same add-on, with a shared login. Just as in
 **Upload**, the item choice is made in the **system browser**, not in a
 native window — and the folder is the one in Edit → Preferences → EasyPDM.
 
@@ -405,7 +424,7 @@ native window — and the folder is the one in Edit → Preferences → EasyPDM.
 2. For an **Assembly**: it also downloads ALL of its components recursively (direct
    children, then their children, and so on — the whole BOM), into the SAME folder as the
    main file. Without this, an assembly built on `App::Link` references to external,
-   saved files (standard in the Assembly/Assembly4 workbench) would have nothing to open
+   saved files (standard in FreeCAD's native Assembly workbench) would have nothing to open
    against — FreeCAD only resolves these references when opening the document, so the
    component files must already be sitting on disk BEFORE the main file is opened.
 3. If the target folder already has a file with **exactly the same name** (i.e. the same
@@ -447,11 +466,11 @@ best approximation.
   version", point 4 above).
 - All files (main + components) land flat in ONE folder, without recreating the BOM
   structure as subfolders. This is the safest default choice for `App::Link` references
-  saved as paths RELATIVE to the document's folder (typical for Assembly4), but if the
+  saved as paths RELATIVE to the document's folder (FreeCAD's default), but if the
   original model was built with files in separate subfolders, or with references saved as
   ABSOLUTE paths from a different machine, the references may still not resolve
-  automatically — in that case they need to be fixed manually in FreeCAD (Assembly4 has a
-  "Make link relative"/change-link-path tool for this).
+  automatically — in that case they need to be fixed manually in FreeCAD (the link's
+  linked-object property).
 - A shared component (used in several places in the tree) is downloaded only once
   (recognized by item ID) — the same as when uploading in **Upload**.
 - Recognizing "this is the file for this item" relies on the same naming convention as
@@ -468,8 +487,8 @@ best approximation.
 # Drawing sheet with the title block
 
 The EasyPDM sheets (`templates/EasyPDM_A3_Landscape.svg`, `…_A2_…`, `…_A1_…`: ISO 5457 frame
-and grid reference, the same title block in the bottom-right corner) is filled in by the two macros above — there is no
-separate macro for it.
+and grid reference, the same title block in the bottom-right corner) is filled in by Upload and
+Download, and on demand by **EasyPDM → Refresh drawing sheet**.
 
 ## When it is filled in
 
@@ -487,6 +506,8 @@ separate macro for it.
   approver's into APPROVED BY — whoever sends a drawing on answers for it, and the PDF in
   EasyPDM carries both without anyone opening the drawing again. A PDF from any other page
   is left alone.
+- **EasyPDM → Refresh drawing sheet** (also in the document panel): fills the sheet of the
+  active document with the item's current data without uploading anything.
 - To start a drawing with the sheet: TechDraw → Insert page using template →
   `EasyPDM_A3_Landscape.svg` (or A2 / A1); the next upload fills it in.
 

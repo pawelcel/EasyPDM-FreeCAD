@@ -260,8 +260,8 @@ getrennte.
 
 ## Automatische Baugruppenerkennung
 
-Wenn das aktive Dokument über `App::Link` (die Standardmethode zum Aufbau von Baugruppen
-in der Workbench Assembly/Assembly4) auf **andere, gespeicherte `.FCStd`-Dateien**
+Wenn das aktive Dokument über `App::Link` und die Links der nativen Assembly-Workbench (die
+Standardmethode zum Aufbau von Baugruppen dort) auf **andere, gespeicherte `.FCStd`-Dateien**
 verlinkt, fragt das Makro **vor** dem Öffnen des Hauptfensters, ob der gesamte Baum
 automatisch gesendet werden soll:
 
@@ -318,6 +318,26 @@ automatisch gesendet werden soll:
   Suche „Cała baza" auffindbar, hört aber auf, die Struktur eines Projekts zu belasten,
   mit dem es nichts mehr zu tun hat (derselbe Mechanismus wie beim manuellen „Aus der
   Struktur entfernen" in der Web-Anwendung).
+
+## Veraltete Komponenten
+
+Während an einer Baugruppe gearbeitet wird, kann jemand anderes eine neuere Datei einer ihrer
+Komponenten hochladen: eine neue Revision oder dieselbe Revision überschrieben. Upload prüft
+deshalb, bevor es etwas sendet, ob das Dokument und jede seiner Komponenten die neuesten Dateien
+in EasyPDM sind (`structure.py`, `POST /api/items/cad-versions`, EasyPDM-Server ab 0.9). Ist eine
+älter, listet es sie auf, mit wer die neuere Datei wann hochgeladen hat, und sendet nichts: die
+neueren Dateien müssen zuerst heruntergeladen werden. Das Dokumentfenster (EasyPDM →
+Dokumentfenster) markiert dieselben Komponenten schon vorher.
+
+Welche Datei eine lokale Kopie ist, erkennt der Server am **Versionsstempel**, den Upload vor dem
+Speichern und Senden in die Meta des Dokuments schreibt (`EasyPDM_ContentVersion`). Er reist mit
+der Datei durch Download und bleibt gleich, wenn FreeCAD die Datei unverändert erneut speichert —
+was es mit Komponenten bei jedem Speichern der Baugruppe tut, sodass ein Hash allein jede davon
+für geändert hielte. Dateien ohne Stempel (vor 0.9 oder aus einem anderen CAD-Programm
+hochgeladen) werden am SHA-256 der Datei auf der Festplatte erkannt, und der Revisionsbuchstabe im
+Label entscheidet, was keines von beiden kann: eine Kopie einer älteren Revision ist veraltet,
+auch wenn der Server ihre genauen Bytes nie gesehen hat. Auf einem Server vor 0.9 entfällt die
+Prüfung.
 
 ## Einschränkungen der ersten Version
 
@@ -408,8 +428,7 @@ Speicherregistrierung), ist unverändert.
 Das zweite Makro: Anstatt zu senden, **lädt** es ein Teil/eine Baugruppe aus EasyPDM
 **herunter** und **öffnet** es/sie sofort in FreeCAD. Anmeldung und API-Adresse sind
 genauso konfiguriert wie in **Upload** (dieselben FreeCAD-Einstellungen) —
-separate Installation/Ausführung (siehe "Installation" oben), aber eine gemeinsame
-Sitzung. Wie in **Upload** fällt die Wahl des Elements im **System-Browser**,
+ein eigener Befehl desselben Add-ons, mit gemeinsamer Anmeldung. Wie in **Upload** fällt die Wahl des Elements im **System-Browser**,
 nicht in einem nativen Fenster, und der Ordner ist der aus Bearbeiten → Einstellungen →
 EasyPDM.
 
@@ -429,8 +448,8 @@ EasyPDM.
 2. Für eine **Baugruppe**: lädt auch ALLE ihre Komponenten rekursiv herunter (direkte
    Kinder, dann deren Kinder, und so weiter — die gesamte Stückliste), in DENSELBEN
    Ordner wie die Hauptdatei. Ohne dies hätte eine auf `App::Link`-Verweisen zu externen,
-   gespeicherten Dateien aufgebaute Baugruppe (Standard in der Workbench
-   Assembly/Assembly4) nichts, womit sie sich öffnen ließe — FreeCAD löst diese Verweise
+   gespeicherten Dateien aufgebaute Baugruppe (Standard in der nativen Assembly-Workbench
+   von FreeCAD) nichts, womit sie sich öffnen ließe — FreeCAD löst diese Verweise
    erst beim Öffnen des Dokuments auf, sodass die Komponentendateien bereits auf der
    Festplatte liegen müssen, BEVOR die Hauptdatei geöffnet wird.
 3. Wenn im Zielordner bereits eine Datei mit **exakt demselben Namen** (also derselben
@@ -476,11 +495,11 @@ nimmt es einfach den zuletzt hochgeladenen Anhang als beste Annäherung.
 - Alle Dateien (Haupt- + Komponentendateien) landen flach in EINEM Ordner, ohne die
   Stücklistenstruktur als Unterordner nachzubilden. Dies ist die sicherste Standardwahl
   für `App::Link`-Verweise, die als Pfade RELATIV zum Dokumentordner gespeichert sind
-  (typisch für Assembly4), aber wenn das ursprüngliche Modell mit Dateien in separaten
+  (Standard in FreeCAD), aber wenn das ursprüngliche Modell mit Dateien in separaten
   Unterordnern oder mit Verweisen als ABSOLUTE Pfade von einem anderen Rechner aufgebaut
   wurde, lösen sich die Verweise unter Umständen trotzdem nicht automatisch auf — dann
-  müssen sie manuell in FreeCAD korrigiert werden (Assembly4 hat dafür ein Werkzeug
-  "Make link relative"/zum Ändern des Link-Pfads).
+  müssen sie manuell in FreeCAD korrigiert werden (die Eigenschaft des verlinkten Objekts im
+  Link).
 - Eine gemeinsam genutzte Komponente (an mehreren Stellen im Baum verwendet) wird nur
   einmal heruntergeladen (erkannt an der Element-ID) — genauso wie beim Senden in
   **Upload**.
@@ -498,8 +517,8 @@ nimmt es einfach den zuletzt hochgeladenen Anhang als beste Annäherung.
 # Zeichnungsblatt mit Schriftfeld
 
 Die EasyPDM-Blätter (`templates/EasyPDM_A3_Landscape.svg`, `…_A2_…`, `…_A1_…`: Rahmen und
-Feldeinteilung nach ISO 5457, dasselbe Schriftfeld rechts unten) wird von den beiden Makros oben ausgefüllt — ein eigenes
-Makro dafür gibt es nicht.
+Feldeinteilung nach ISO 5457, dasselbe Schriftfeld rechts unten) werden von Upload und Download ausgefüllt, und auf Wunsch
+mit **EasyPDM → Zeichnungsblatt aktualisieren**.
 
 ## Wann es ausgefüllt wird
 
@@ -512,6 +531,14 @@ Makro dafür gibt es nicht.
   so gelangt „freigegeben“ auf eine Zeichnung, die vor der Freigabe gesendet wurde (ein
   freigegebenes Element kann nicht erneut gesendet werden). Hier wird nichts hinzugefügt und
   nichts gefragt.
+- **Prüfung und Freigabe**: Upload lässt GEZEICHNET leer und markiert das PDF, das es von einer
+  Seite mit dem EasyPDM-Blatt exportiert. Geht das Element in Prüfung, schreibt der Server Name
+  und Datum des Absenders in das Feld GEZEICHNET dieses PDFs, bei der Freigabe den des
+  Freigebenden in FREIGEGEBEN — wer eine Zeichnung weitergibt, steht für sie ein, und das PDF in
+  EasyPDM trägt beides, ohne dass jemand die Zeichnung erneut öffnet. Ein PDF von einer anderen
+  Seite bleibt unverändert.
+- **EasyPDM → Zeichnungsblatt aktualisieren** (auch im Dokumentfenster): füllt das Blatt des
+  aktiven Dokuments mit den aktuellen Daten des Elements, ohne etwas hochzuladen.
 - Um eine Zeichnung mit dem Blatt zu beginnen: TechDraw → Seite mit Vorlage einfügen →
   `EasyPDM_A3_Landscape.svg` (oder A2 / A1); der nächste Upload füllt sie aus.
 

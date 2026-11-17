@@ -232,8 +232,8 @@ dwie osobne.
 
 ## Automatyczne wykrywanie złożenia
 
-Jeśli aktywny dokument linkuje (`App::Link` — standardowy sposób budowania złożeń
-w workbenchu Assembly/Assembly4) do **innych, zapisanych plików `.FCStd`**, makro **przed**
+Jeśli aktywny dokument linkuje (`App::Link` i linki natywnego workbencha Assembly — standardowy
+sposób budowania w nim złożeń) do **innych, zapisanych plików `.FCStd`**, makro **przed**
 otwarciem głównego okna pyta, czy wysłać całe drzewo automatycznie:
 
 - **Wykrywanie**: przechodzi po obiektach dokumentu, znajduje `App::Link` wskazujące na
@@ -285,6 +285,24 @@ otwarciem głównego okna pyta, czy wysłać całe drzewo automatycznie:
   i znajdywalne przez globalną wyszukiwarkę "Cała baza", tylko przestaje zaśmiecać
   strukturę projektu, z którym nie ma już nic wspólnego (ten sam mechanizm co ręczne
   "Usuń ze struktury" w aplikacji webowej).
+
+## Nieaktualne komponenty
+
+W trakcie pracy nad złożeniem ktoś inny może wysłać nowszy plik któregoś z jego komponentów:
+nową rewizję albo tę samą rewizję nadpisaną. Dlatego Upload, zanim cokolwiek wyśle, sprawdza,
+czy dokument i każdy jego komponent to najnowsze pliki w EasyPDM (`structure.py`,
+`POST /api/items/cad-versions`, serwery EasyPDM od 0.9). Gdy któryś jest starszy, wypisuje je
+razem z tym, kto i kiedy wysłał nowszy plik, i niczego nie wysyła: nowsze pliki trzeba najpierw
+pobrać. Panel dokumentu (EasyPDM → Panel dokumentu) zaznacza te same komponenty wcześniej.
+
+Który to plik, serwer rozpoznaje po **znaczniku wersji**, który Upload wpisuje do Meta dokumentu
+(`EasyPDM_ContentVersion`) przed zapisem i wysłaniem. Wędruje razem z plikiem przez Download i nie
+zmienia się, gdy FreeCAD zapisze plik ponownie bez zmian — a robi to z komponentami przy każdym
+zapisie złożenia, więc sam skrót uznałby każdy z nich za zmieniony. Pliki bez znacznika (wysłane
+przed 0.9 albo z innego programu CAD) są rozpoznawane po SHA-256 pliku na dysku, a litera rewizji
+w etykiecie rozstrzyga to, czego nie rozstrzygnie żadne z nich: kopia starszej rewizji jest
+nieaktualna, nawet gdy serwer nigdy nie widział dokładnie jej bajtów. Na serwerze starszym niż
+0.9 sprawdzenie jest pomijane.
 
 ## Ograniczenia pierwszej wersji
 
@@ -364,8 +382,8 @@ krawędzie BOM, rejestracja w magazynie), pozostaje niezmienione.
 
 Drugie makro: zamiast wysyłać, **pobiera** Część/Złożenie z EasyPDM i od razu **otwiera** je
 w FreeCAD. Logowanie i adres API są dokładnie tak samo skonfigurowane jak w
-**Upload** (te same preferencje FreeCAD) — osobna instalacja/uruchomienie
-(patrz "Instalacja" wyżej), ale wspólna sesja. Tak jak w **Upload**, wybór
+**Upload** (te same preferencje FreeCAD) — osobne polecenie tego samego dodatku, ze
+wspólnym logowaniem. Tak jak w **Upload**, wybór
 elementu zapada w **przeglądarce systemowej**, nie w natywnym oknie, a folder to ten z
 Edycja → Preferencje → EasyPDM.
 
@@ -382,7 +400,7 @@ Edycja → Preferencje → EasyPDM.
 2. Dla **Złożenia**: pobiera też WSZYSTKIE jego składniki rekurencyjnie (bezpośrednie dzieci,
    potem ich dzieci, i tak dalej — cały BOM), do TEGO SAMEGO folderu co plik główny. Bez tego
    złożenie zbudowane na odnośnikach `App::Link` do zewnętrznych, zapisanych plików (standard
-   w workbenchu Assembly/Assembly4) nie miałoby czym się otworzyć — FreeCAD rozwiązuje te
+   w natywnym workbenchu Assembly FreeCAD) nie miałoby czym się otworzyć — FreeCAD rozwiązuje te
    odnośniki dopiero przy otwieraniu dokumentu, więc pliki składników muszą już leżeć na dysku
    PRZED otwarciem pliku głównego.
 3. Jeśli w folderze docelowym jest już plik o **dokładnie tej samej nazwie** (czyli tej samej
@@ -421,11 +439,11 @@ wgrany załącznik jako najlepsze przybliżenie.
   punkt 4 wyżej).
 - Wszystkie pliki (główny + składniki) lądują płasko w JEDNYM folderze, bez odtwarzania
   struktury BOM jako podfolderów. To najbezpieczniejszy domyślny wybór dla odnośników
-  `App::Link` zapisanych jako ścieżki WZGLĘDEM folderu dokumentu (typowe dla Assembly4), ale
+  `App::Link` zapisanych jako ścieżki WZGLĘDEM folderu dokumentu (domyślne w FreeCAD), ale
   jeśli oryginalny model był budowany z plikami w osobnych podfolderach albo z odnośnikami
   zapisanymi jako ścieżki BEZWZGLĘDNE z innej maszyny, odnośniki mogą mimo to nie rozwiązać
-  się automatycznie — wtedy trzeba je poprawić ręcznie w FreeCAD (Assembly4 ma do tego
-  narzędzie "Make link relative"/zmianę ścieżki linku).
+  się automatycznie — wtedy trzeba je poprawić ręcznie w FreeCAD (właściwość obiektu
+  linkowanego w linku).
 - Współdzielony komponent (użyty w kilku miejscach drzewa) pobierany jest tylko raz
   (rozpoznawany po ID elementu) — tak samo jak przy wysyłaniu w **Upload**.
 - Rozpoznanie "to jest plik tego elementu" opiera się na tej samej konwencji nazw co
@@ -441,7 +459,8 @@ wgrany załącznik jako najlepsze przybliżenie.
 # Arkusz rysunkowy z tabelką
 
 Arkusze EasyPDM (`templates/EasyPDM_A3_Landscape.svg`, `…_A2_…`, `…_A1_…`: ramka i strefy
-wg ISO 5457, ta sama tabelka w prawym dolnym rogu) wypełniają oba makra powyżej — nie ma do tego osobnego makra.
+wg ISO 5457, ta sama tabelka w prawym dolnym rogu) wypełniają Upload i Download, a na żądanie
+**EasyPDM → Odśwież arkusz rysunku**.
 
 ## Kiedy jest wypełniany
 
@@ -452,6 +471,13 @@ wg ISO 5457, ta sama tabelka w prawym dolnym rogu) wypełniają oba makra powyż
 - **Download**, po otwarciu pliku: odświeża strony z arkuszem EasyPDM — tak „zatwierdził”
   trafia na rysunek wysłany przed wydaniem elementu (wydanego elementu nie da się wysłać
   ponownie). Niczego tu nie dodaje ani o nic nie pyta.
+- **Sprawdzenie i wydanie**: Upload zostawia NARYSOWAŁ puste i oznacza PDF, który eksportuje ze
+  strony z arkuszem EasyPDM. Gdy element idzie do sprawdzenia, serwer wpisuje do pola NARYSOWAŁ
+  tego PDF-a nazwisko wysyłającego i datę, a przy wydaniu do ZATWIERDZIŁ — wydającego: za
+  rysunek odpowiada ten, kto go przekazał dalej, a PDF w EasyPDM ma oba pola bez ponownego
+  otwierania rysunku. PDF z każdej innej strony zostaje bez zmian.
+- **EasyPDM → Odśwież arkusz rysunku** (także w panelu dokumentu): wypełnia arkusz aktywnego
+  dokumentu bieżącymi danymi elementu, niczego nie wysyłając.
 - Żeby zacząć rysunek od arkusza: TechDraw → Wstaw stronę z szablonu →
   `EasyPDM_A3_Landscape.svg` (albo A2 / A1); najbliższy Upload go wypełni.
 

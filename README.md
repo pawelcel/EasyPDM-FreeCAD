@@ -14,8 +14,10 @@ revisions, statuses, BOM and drawing title blocks filled in from the PDM.
 ![The EasyPDM workbench in FreeCAD: its menu, its toolbar and the document panel](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD/images/workbench.png)
 
 This is the home of EasyPDM's FreeCAD integration: report problems and send changes here. The
-EasyPDM server, web app and the other CAD integrations live in
-[pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM). Signing in through the browser, "Open in
+EasyPDM server and web app live in [pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM), the
+other CAD integrations in [EasyPDM-SolidWorks](https://github.com/pawelcel/EasyPDM-SolidWorks),
+[EasyPDM-SolidCraft](https://github.com/pawelcel/EasyPDM-SolidCraft) and, for Inventor, the
+EasyPDM repository itself. Signing in through the browser, "Open in
 browser" on the item itself and the check for outdated components need an EasyPDM server from
 0.9; everything else works with 0.8.
 
