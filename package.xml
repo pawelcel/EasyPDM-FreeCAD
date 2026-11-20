@@ -6,10 +6,10 @@
   <maintainer email="noreply@github.com">pawelcel</maintainer>
   <license file="LICENSE">MIT</license>
   <date>2026-11-16</date>
-  <url type="repository" branch="main">https://github.com/pawelcel/EasyPDM-FreeCAD</url>
+  <url type="repository" branch="main">https://github.com/pawelcel/EasyPDM-FreeCAD-Addon</url>
   <url type="website">https://github.com/pawelcel/EasyPDM</url>
-  <url type="documentation">https://github.com/pawelcel/EasyPDM-FreeCAD/blob/main/docs/README.md</url>
-  <url type="bugtracker">https://github.com/pawelcel/EasyPDM-FreeCAD/issues</url>
+  <url type="documentation">https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/docs/README.md</url>
+  <url type="bugtracker">https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/issues</url>
   <icon>freecad/EasyPDM/icons/EasyPDM.svg</icon>
   <content>
     <workbench>

@@ -4,7 +4,7 @@
 
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="136">](https://buymeacoffee.com/easypdm)
 
-[![Release](https://img.shields.io/github/v/release/pawelcel/EasyPDM-FreeCAD?label=release)](https://github.com/pawelcel/EasyPDM-FreeCAD/releases/latest) [![License: MIT](https://img.shields.io/github/license/pawelcel/EasyPDM-FreeCAD)](LICENSE) [![Tests](https://img.shields.io/github/actions/workflow/status/pawelcel/EasyPDM-FreeCAD/check.yml?branch=main&label=tests)](https://github.com/pawelcel/EasyPDM-FreeCAD/actions/workflows/check.yml) [![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki)
+[![Release](https://img.shields.io/github/v/release/pawelcel/EasyPDM-FreeCAD-Addon?label=release)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/releases/latest) [![License: MIT](https://img.shields.io/github/license/pawelcel/EasyPDM-FreeCAD-Addon)](LICENSE) [![Tests](https://img.shields.io/github/actions/workflow/status/pawelcel/EasyPDM-FreeCAD-Addon/check.yml?branch=main&label=tests)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/actions/workflows/check.yml) [![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)
 
 An **EasyPDM workbench** for FreeCAD: **Upload** the active document to an
 [EasyPDM](https://github.com/pawelcel/EasyPDM) server, **Download** an item with its whole
@@ -13,14 +13,14 @@ assembly, **Log in** (approved in the browser, so FreeCAD never sees your passwo
 **EasyPDM menu in every workbench** in the EasyPDM menu (off by default). EasyPDM is a free, self-hosted PDM for small engineering firms: numbering,
 revisions, statuses, BOM and drawing title blocks filled in from the PDM.
 
-**[Wiki: how to install and use it, with screenshots of where everything is](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki)**
+**[Wiki: how to install and use it, with screenshots of where everything is](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)**
 
-![The EasyPDM workbench in FreeCAD: its menu, its toolbar and the document panel](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD/images/workbench.png)
+![The EasyPDM workbench in FreeCAD: its menu, its toolbar and the document panel](https://raw.githubusercontent.com/wiki/pawelcel/EasyPDM-FreeCAD-Addon/images/workbench.png)
 
 This is the home of EasyPDM's FreeCAD integration: report problems and send changes here. The
 EasyPDM server and web app live in [pawelcel/EasyPDM](https://github.com/pawelcel/EasyPDM), the
-other CAD integrations in [EasyPDM-SolidWorks](https://github.com/pawelcel/EasyPDM-SolidWorks),
-[EasyPDM-SolidCraft](https://github.com/pawelcel/EasyPDM-SolidCraft) and, for Inventor, the
+other CAD integrations in [EasyPDM-SolidWorks-Addon](https://github.com/pawelcel/EasyPDM-SolidWorks-Addon),
+[EasyPDM-SolidCraft-Addon](https://github.com/pawelcel/EasyPDM-SolidCraft-Addon) and, for Inventor, the
 EasyPDM repository itself. Signing in through the browser, "Open in
 browser" on the item itself and the check for outdated components need an EasyPDM server from
 0.9; everything else works with 0.8.
@@ -28,13 +28,13 @@ browser" on the item itself and the check for outdated components need an EasyPD
 ## Installing
 
 1. FreeCAD → **Edit → Preferences → Addon Manager** → **Custom repositories**: add
-   `https://github.com/pawelcel/EasyPDM-FreeCAD` with branch `main`.
+   `https://github.com/pawelcel/EasyPDM-FreeCAD-Addon` with branch `main`.
 2. **Tools → Addon manager**: install **EasyPDM** from the list and restart FreeCAD.
 
 Updates arrive the same way; restart FreeCAD after one. Step by step with screenshots:
-[Installation](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki/Installation) on the wiki.
+[Installation](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki/Installation) on the wiki.
 
-Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/pawelcel/EasyPDM-FreeCAD/releases) into FreeCAD's `Mod` folder (it holds an `EasyPDM` folder) (Linux usually
+Or unpack `EasyPDM_FreeCad_Addon_vX.zip` from a [release](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/releases) into FreeCAD's `Mod` folder (it holds an `EasyPDM` folder) (Linux usually
 `~/.local/share/FreeCAD/v1-1/Mod`, Windows `%APPDATA%\FreeCAD\v1-1\Mod`).
 
 ## What works
@@ -86,7 +86,7 @@ The server address and your name are kept in FreeCAD's preferences
 
 ## Documentation
 
-- **[The wiki](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki)**: installing, signing in, the
+- **[The wiki](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)**: installing, signing in, the
   document panel, Upload and Download, with screenshots of where everything is.
 - [CAD Integrations](https://github.com/pawelcel/EasyPDM/wiki/CAD-Integrations) on the EasyPDM wiki
 - [How Upload and Download work](docs/README.md) ([polski](docs/README.pl.md),

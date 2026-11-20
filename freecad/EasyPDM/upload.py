@@ -2041,7 +2041,7 @@ def process_assembly_tree(top_doc, target_folder=None):
         return [], True, []
     # "Nie" pomija tworzenie nowych komponentów i aktualizację istniejących -- już
     # podlinkowane i tak trafiają do struktury (podpięcie bez wysyłania pliku), dokładnie
-    # ten sam podział co EasyPDMUpload.bas ProcessAssemblyTree (EasyPDM-SolidWorks).
+    # ten sam podział co EasyPDMUpload.bas ProcessAssemblyTree (EasyPDM-SolidWorks-Addon).
     send_new_components = dialog.choice == "yes"
     update_existing = send_new_components and bool(updatable or top_updatable)
     update_step = dialog.export_step()
