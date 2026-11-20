@@ -235,9 +235,10 @@ def build_base_sheet(fmt_name, rec=None):
             "<tspan>%s</tspan></text>" % (key, _sh_f(x), _sh_f(y), _sh_esc(SHEET_LABELS[key][1])))
 
     def value(key, x, y, size=3.5, text="", bold=False, anchor="start", autofill=None):
+        # No font-weight:bold in the SVG: osifont has no bold face, so FreeCAD fakes one when it
+        # exports the PDF, and that comes out as a doubled, blurred word in PDF viewers. The
+        # bold flag still goes into `rec` for the SolidWorks sheet format, whose font has one.
         style = "font-size:%spx;fill:#000000" % _sh_f(size)
-        if bold:
-            style += ";font-weight:bold"
         if anchor != "start":
             style += ";text-anchor:%s" % anchor
         txt(x, y, text, size, bold, anchor, "pdm_" + key)
@@ -310,9 +311,9 @@ def _processes_table(x0, bottom, width, rows, headers, measure):
     o.append('</g><g style="%s">' % _THICK)
     o.append('<rect x="%s" y="%s" width="%s" height="%s"/>' % (_sh_f(x0), _sh_f(top), _sh_f(width), _sh_f(bottom - top)))
     o.append("</g>")
-    o.append(_sh_text(x0 + pad, hdr_top + 4.2, headers[0], 2.4, ";font-weight:bold"))
-    o.append(_sh_text(x0 + w_no + pad, hdr_top + 4.2, headers[1], 2.4, ";font-weight:bold"))
-    o.append(_sh_text(x0 + w_no + w_name + pad, hdr_top + 4.2, headers[2], 2.4, ";font-weight:bold"))
+    o.append(_sh_text(x0 + pad, hdr_top + 4.2, headers[0], 2.4, ""))
+    o.append(_sh_text(x0 + w_no + pad, hdr_top + 4.2, headers[1], 2.4, ""))
+    o.append(_sh_text(x0 + w_no + w_name + pad, hdr_top + 4.2, headers[2], 2.4, ""))
     yb = hdr_top
     for n, name_l, desc_l, ntr_l, dtr_l, h in built:
         yt = yb - h
@@ -346,7 +347,7 @@ def _revisions_table(right, top, width, rows, headers, measure):
         desc_l = wrap_text(r.get("description", ""), w_desc - 2 * pad, SIZE, measure) or [""]
         by_l = wrap_text(r.get("by", ""), w_by - 2 * pad, SIZE, measure) or [""]
         h = max(8.0, 3.0 + LH * max(len(desc_l), len(by_l)))
-        o_text.append(_sh_text(x0 + w_rev / 2.0, y + 5.3, r.get("label", ""), 3.4, ";font-weight:bold;text-anchor:middle"))
+        o_text.append(_sh_text(x0 + w_rev / 2.0, y + 5.3, r.get("label", ""), 3.4, ";text-anchor:middle"))
         o_text.append(_sh_text(x0 + w_rev + pad, y + 5.3, r.get("date", ""), SIZE))
         for i, line in enumerate(desc_l):
             o_text.append(_sh_text(x0 + w_rev + w_date + pad, y + 5.3 + i * LH, line, SIZE))
@@ -362,7 +363,7 @@ def _revisions_table(right, top, width, rows, headers, measure):
     o.append('<rect x="%s" y="%s" width="%s" height="%s" style="%s"/>' % (_sh_f(x0), _sh_f(top), _sh_f(width), _sh_f(bottom - top), _THICK))
     hx = (x0 + pad, x0 + w_rev + pad, x0 + w_rev + w_date + pad, right - w_by + pad)
     for x, h in zip(hx, headers):
-        o.append(_sh_text(x, top + 4.2, h, 2.4, ";font-weight:bold"))
+        o.append(_sh_text(x, top + 4.2, h, 2.4, ""))
     return o + o_text
 
 

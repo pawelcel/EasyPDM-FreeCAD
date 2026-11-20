@@ -157,14 +157,14 @@
   <text freecad:editable="pdm_label_mass" x="692.5" y="576" style="font-size:2px;fill:#000000"><tspan>MASS</tspan></text>
   <text freecad:editable="pdm_mass" x="692.5" y="581.5" style="font-size:3.5px;fill:#000000"><tspan></tspan></text>
   <text freecad:editable="pdm_label_company" x="722.5" y="543" style="font-size:2px;fill:#000000"><tspan>COMPANY</tspan></text>
-  <text freecad:editable="pdm_company" x="722.5" y="548.8" style="font-size:3.5px;fill:#000000;font-weight:bold"><tspan></tspan></text>
+  <text freecad:editable="pdm_company" x="722.5" y="548.8" style="font-size:3.5px;fill:#000000"><tspan></tspan></text>
   <text freecad:editable="pdm_label_name" x="722.5" y="554" style="font-size:2px;fill:#000000"><tspan>NAME</tspan></text>
-  <text freecad:editable="pdm_name" x="722.5" y="561.5" style="font-size:6px;fill:#000000;font-weight:bold"><tspan></tspan></text>
+  <text freecad:editable="pdm_name" x="722.5" y="561.5" style="font-size:6px;fill:#000000"><tspan></tspan></text>
   <text freecad:editable="pdm_name_translations" x="722.5" y="566.3" style="font-size:2.3px;fill:#000000"><tspan></tspan></text>
   <text freecad:editable="pdm_label_drawing_number" x="722.5" y="571" style="font-size:2px;fill:#000000"><tspan>DRAWING NUMBER</tspan></text>
-  <text freecad:editable="pdm_drawing_number" x="722.5" y="580" style="font-size:5px;fill:#000000;font-weight:bold"><tspan></tspan></text>
+  <text freecad:editable="pdm_drawing_number" x="722.5" y="580" style="font-size:5px;fill:#000000"><tspan></tspan></text>
   <text freecad:editable="pdm_label_revision" x="792.5" y="571" style="font-size:2px;fill:#000000"><tspan>REVISION</tspan></text>
-  <text freecad:editable="pdm_revision" x="802.5" y="581.5" style="font-size:7px;fill:#000000;font-weight:bold;text-anchor:middle"><tspan></tspan></text>
+  <text freecad:editable="pdm_revision" x="802.5" y="581.5" style="font-size:7px;fill:#000000;text-anchor:middle"><tspan></tspan></text>
   <text freecad:editable="pdm_label_format" x="815.5" y="571" style="font-size:2px;fill:#000000"><tspan>FORMAT</tspan></text>
   <text freecad:editable="pdm_format" x="822.5" y="581" style="font-size:5px;fill:#000000;text-anchor:middle"><tspan>A1</tspan></text>
   </g>

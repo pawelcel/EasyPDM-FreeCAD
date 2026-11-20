@@ -6,6 +6,11 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+## [0.9.3]
+
+### Fixed
+- **No more doubled, blurred lettering in the drawing PDF.** The company, the name, the drawing number, the revision and the headers of the processes and revision tables were set in bold, but the sheet's font (osifont) has no bold face, so FreeCAD faked one when exporting the PDF, and viewers showed each of those words twice, slightly offset. The EasyPDM sheets now use the regular face throughout; the name, number and revision still stand out by their size. A drawing picks up the new sheet the next time Upload, Download or Refresh drawing sheet refreshes it; the PDF of an item already released keeps its look until its next revision. The SolidWorks sheet format is unchanged: its font has a real bold face.
+
 ## [0.9.2]
 
 ### Fixed
