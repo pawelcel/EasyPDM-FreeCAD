@@ -18,5 +18,9 @@ try:
     from . import preferences
 
     preferences.register()
+
+    from . import scale_watch
+
+    scale_watch.register()  # the SCALE field of an EasyPDM sheet follows Page > Scale
 except Exception as e:  # an add-on must never stop FreeCAD from starting
     App.Console.PrintError("EasyPDM add-on failed to load: %s\n" % e)

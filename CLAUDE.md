@@ -32,6 +32,9 @@ The add-on is meant for the Addon Index (its "Qualities" page in the Addon Acade
 - **The menu in every workbench is opt-in**: `install_menu()` hooks the menu bar only when it is on,
   `apply_menu_everywhere()` hooks or unhooks when the option changes. Off, the add-on touches only
   its own workbench.
+- **One document observer, `scale_watch.py`**, keeps an EasyPDM sheet's SCALE equal to Page > Scale
+  (FreeCAD's autofill runs only at insertion). It must stay that light: it compares the property
+  name and type and acts only on TechDraw pages, deferring its change past the notification.
 - **Qt through FreeCAD's wrapper**: `from PySide import QtCore, QtGui, QtWidgets`, never PySide6/2.
 - **URLs only through `net.urlopen`**, which refuses anything but http(s).
 - **Bandit clean** with `bandit.yaml` (the Addon Report's settings; CI runs it). Fix findings; an

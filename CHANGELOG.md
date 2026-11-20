@@ -6,6 +6,11 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+## [0.9.2]
+
+### Fixed
+- **The SCALE field of the EasyPDM drawing sheet follows the page's scale.** FreeCAD fills a template's fields only once, when it is inserted, so changing Page > Scale left "1:1" in the title block until the next Upload, Download or Refresh drawing sheet. The field now changes with the page at once, also in a drawing that is not in EasyPDM yet; pages with other templates are left alone.
+
 ## [0.9.1]
 
 **In short:** EasyPDM for FreeCAD now keeps to the rules of FreeCAD's Addon Index. Nothing happens at FreeCAD start-up beyond registering the workbench (no secret-storage read, so no KWallet prompt when FreeCAD opens), the menu in every workbench touches FreeCAD's menu bar only while it is turned on, and the code passes the Index's security scan. Works with EasyPDM 0.9 servers, as 0.9.0 did; update through the Addon Manager.
