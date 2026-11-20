@@ -7,7 +7,8 @@ import json
 import os
 import re
 import shutil
-import subprocess
+# Audited: subprocess runs only gdbus, wmctrl and xdotool with fixed argument lists, no shell (added nosec B404)
+import subprocess  # nosec B404
 import sys
 import tempfile
 import uuid
@@ -15,15 +16,10 @@ import webbrowser
 from urllib import error, request
 from urllib.parse import quote, urlencode
 import FreeCAD as App
-try:
-    from PySide6 import QtCore, QtWidgets
-except ImportError:
-    try:
-        from PySide2 import QtCore, QtWidgets
-    except ImportError:
-        from PySide import QtCore
-        from PySide import QtGui as QtWidgets  # bardzo stare FreeCAD (Qt4)
+# FreeCAD's own Qt wrapper (Ext/PySide), as the Addon Index asks: it maps to PySide6 or PySide2.
+from PySide import QtCore, QtWidgets
 
+from . import net
 from . import secure_store
 from .i18n import translate
 
@@ -98,7 +94,7 @@ def api_post_json(path, payload):
     headers.update(_auth_headers())
     req = request.Request(get_base_url() + path, data=data, method="POST", headers=headers)
     try:
-        with request.urlopen(req, timeout=15) as resp:
+        with net.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else None
     except error.HTTPError as e:
@@ -117,7 +113,7 @@ def api_logout():
             get_base_url() + "/auth/logout", method="POST", headers=_auth_headers()
         )
         try:
-            request.urlopen(req, timeout=10)
+            net.urlopen(req, timeout=10)
         except Exception:
             pass
     set_session_token(None)
@@ -185,13 +181,7 @@ def open_in_browser(url):
     `webbrowser.open` zostaje jako zapas: gdy Qt nie ma tej funkcji albo odmówi (stare
     FreeCAD, brak środowiska graficznego), zachowanie jest dokładnie takie jak dotąd."""
     try:
-        try:
-            from PySide6 import QtGui
-        except ImportError:
-            try:
-                from PySide2 import QtGui
-            except ImportError:
-                from PySide import QtGui
+        from PySide import QtGui
         if QtGui.QDesktopServices.openUrl(QtCore.QUrl(url)):
             return
     except Exception:
@@ -245,14 +235,16 @@ def _raise_via_kwin(match_js=None):
 
     Zwraca True, gdy skrypt udało się uruchomić — nie mówi, czy okno znalazł. Poza KDE (brak
     gdbus albo usługi org.kde.KWin) po prostu zwraca False."""
-    if shutil.which("gdbus") is None:
+    gdbus = shutil.which("gdbus")
+    if gdbus is None:
         return False
     plugin = "easypdm-raise-browser"
     path = None
 
     def call(object_path, method, *args):
-        return subprocess.run(
-            ["gdbus", "call", "--session", "--dest", "org.kde.KWin",
+        # Audited: absolute gdbus path, fixed method names, our own temp script path; no shell (added nosec B603)
+        return subprocess.run(  # nosec B603
+            [gdbus, "call", "--session", "--dest", "org.kde.KWin",
              "--object-path", object_path, "--method", method, *args],
             capture_output=True, text=True, timeout=3,
         )
@@ -294,10 +286,12 @@ def _focus_browser_window():
         return True
     for command in (["wmctrl", "-a", APP_WINDOW_TITLE],
                     ["xdotool", "search", "--name", "^" + re.escape(APP_WINDOW_TITLE), "windowactivate"]):
-        if shutil.which(command[0]) is None:
+        program = shutil.which(command[0])
+        if program is None:
             continue
         try:
-            done = subprocess.run(command, timeout=3,
+            # Audited: absolute path from shutil.which, fixed arguments (the app's window title); no shell (added nosec B603)
+            done = subprocess.run([program] + command[1:], timeout=3,  # nosec B603
                                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if done.returncode == 0:
                 return True
@@ -398,7 +392,7 @@ CLIENT_NAME = "EasyPDM for FreeCAD"
 def api_get(path):
     req = request.Request(get_base_url() + path, method="GET", headers=_auth_headers())
     try:
-        with request.urlopen(req, timeout=15) as resp:
+        with net.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else None
     except error.HTTPError as e:
@@ -412,7 +406,7 @@ def api_get_binary(path):
     (załączników), które nie są JSON-em."""
     req = request.Request(get_base_url() + path, method="GET", headers=_auth_headers())
     try:
-        with request.urlopen(req, timeout=120) as resp:
+        with net.urlopen(req, timeout=120) as resp:
             return resp.read()
     except error.HTTPError as e:
         _raise_for_http_error(e)
@@ -436,7 +430,7 @@ def api_login(username, password):
             get_base_url() + path, data=data, method="POST",
             headers={"Content-Type": "application/json"},
         )
-        with request.urlopen(req, timeout=10) as resp:
+        with net.urlopen(req, timeout=10) as resp:
             raw = resp.read().decode("utf-8")
             return (json.loads(raw) if raw else {}), resp.headers.get("Set-Cookie", "")
 
@@ -478,7 +472,8 @@ TRANSLATIONS = {
     "login_dialog_title": "Log in to PDM",
     "api_address_label": "API address:",
     "username_label": "Username:",
-    "password_label": "Password:",
+    # Audited: the text of a field label, not a password (added nosec B105)
+    "password_label": "Password:",  # nosec B105
     "login_button": "Log in",
     "cancel_button": "Cancel",
     "assembly_update_note": "Files already in the PDM with status \"In work\" will be updated (their CAD file replaces the same revision).",

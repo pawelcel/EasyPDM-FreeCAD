@@ -6,6 +6,14 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+### Changed
+- **Nothing happens at FreeCAD start-up beyond registering the workbench.** The add-on used to read the login token from the system's secret storage as FreeCAD started (to label the Log in / Log out button), which ran `secret-tool` or `security` and could make KWallet ask for its password before anyone clicked anything; the button now starts from what is known without it, and the token is read on the first click.
+- **The menu in every workbench hooks into FreeCAD's menu bar only while it is turned on.** With the option off (the default) the add-on no longer watches the menu bar or workbench changes at all; turning it on hooks in at once, turning it off takes the menu and the hooks away again.
+- **Qt comes through FreeCAD's own PySide wrapper**, as FreeCAD's Addon Index asks, instead of importing PySide6 or PySide2 directly.
+- **Every request goes through one helper that opens only http and https addresses**, so a mistyped or crafted server address cannot make the add-on read a `file://` path.
+- **The manifest has tags and a description that says what the add-on does**, and the README's logo and links use full addresses, so they work in FreeCAD's Addon Manager too.
+- **CI runs the Bandit security scan with the settings of FreeCAD's Addon Report**; the code is clean of findings, with each deliberate exception audited in a comment.
+
 ## [0.9.0]
 
 **In short:** the first release of EasyPDM for FreeCAD as a workbench of its own, in place of the macros. Upload, Download, Log in and Log out from the EasyPDM menu and toolbar; a document panel beside the model tree with the item's record, revision, status and lock, and for an assembly the tree of its components marked current or outdated; an Upload that refuses work built on outdated files; the login kept in the system's secret storage; English, Polish and German.

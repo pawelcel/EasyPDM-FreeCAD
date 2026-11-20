@@ -1,0 +1,10 @@
+# Configuration for Bandit static security analysis, the same settings as FreeCAD's
+# Addon Report (https://freecad.github.io/Addon-Reports/). Run locally with:
+#   bandit -c bandit.yaml -r .
+
+exclude_dirs:
+  - "*/.venv/*"
+
+skips:
+  - B101   # assert_used
+  - B110   # try_except_pass

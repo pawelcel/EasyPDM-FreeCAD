@@ -77,7 +77,7 @@ class EasyPDMPreferencePage:
             p.SetString("ApiBaseUrl", server + "/api")
         p.SetString("DownloadFolder", self.folder.text().strip())
         p.SetBool(ea.MENU_EVERYWHERE, self.everywhere.isChecked())
-        ea._sync_menu()
+        ea.apply_menu_everywhere()
         ea._refresh_panel()
 
 

@@ -12,13 +12,8 @@ import os
 
 import FreeCADGui as Gui
 
-try:
-    from PySide6 import QtCore
-except ImportError:
-    try:
-        from PySide2 import QtCore
-    except ImportError:
-        from PySide import QtCore
+# FreeCAD's own Qt wrapper (Ext/PySide), as the Addon Index asks.
+from PySide import QtCore
 
 CONTEXT = "EasyPDM"
 DIRECTORY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "translations")

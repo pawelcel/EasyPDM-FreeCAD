@@ -26,17 +26,12 @@ import webbrowser
 import FreeCAD as App
 import FreeCADGui as Gui
 
+from . import net
 from . import secure_store
 from .i18n import N_, translate
 
-try:
-    from PySide import QtCore, QtGui
-    QtWidgets = QtGui
-except ImportError:  # pragma: no cover
-    from PySide6 import QtCore, QtGui, QtWidgets  # type: ignore
-
-if not hasattr(QtWidgets, "QDialog"):
-    from PySide import QtWidgets  # FreeCAD's PySide shim keeps widgets there on Qt 6
+# FreeCAD's own Qt wrapper (Ext/PySide), as the Addon Index asks: it maps to PySide6 or PySide2.
+from PySide import QtCore, QtGui, QtWidgets
 
 PARAM_GROUP = "User parameter:BaseApp/EasyPDM"
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -81,7 +76,7 @@ def _post(url, body, token=None):
         headers["Cookie"] = "pdm_session=" + token
     req = urllib.request.Request(url, data=json.dumps(body).encode("utf-8"), method="POST", headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with net.urlopen(req, timeout=15) as r:
             raw = r.read()
             return r.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
@@ -101,7 +96,7 @@ def api(method, path, body=None):
     data = None if body is None else json.dumps(body).encode("utf-8")
     req = urllib.request.Request(_base_url() + path, data=data, method=method, headers=headers)
     try:
-        with urllib.request.urlopen(req, timeout=15) as r:
+        with net.urlopen(req, timeout=15) as r:
             raw = r.read()
             return r.status, (json.loads(raw) if raw else None)
     except urllib.error.HTTPError as e:
@@ -414,8 +409,18 @@ class _LockCommand:
         _run_safely(toggle_lock)
 
 
+def _looks_signed_in():
+    """Whether the account button should offer Log out, without touching the system's secret
+    storage: what this session already read or wrote there, else the display name saved at log
+    in and cleared at log out. Reading the token at start-up would run secret-tool or `security`
+    (and could make KWallet ask for its password) before anyone clicked anything, which the
+    Addon Index rules out; the click itself still checks the real token."""
+    known, token = secure_store.peek(_base_url())
+    return bool(token) if known else bool(_signed_in_as())
+
+
 def _account_state():
-    if _token():
+    if _looks_signed_in():
         return N_("Log out"), N_("Sign out of EasyPDM"), "LogOut"
     return N_("Log in…"), N_("Sign in to EasyPDM by approving it in the browser"), "LogIn"
 
@@ -529,7 +534,7 @@ class _MenuEverywhereCommand:
     def Activated(self, checked=None):
         on = (not menu_everywhere()) if checked is None else bool(checked)
         _params().SetBool(MENU_EVERYWHERE, on)
-        _sync_menu()
+        apply_menu_everywhere()
 
 
 def register_commands():
@@ -572,6 +577,14 @@ def _decorate_menus(bar):
             continue
         menu.setProperty("easypdm_status", True)
         menu.aboutToShow.connect(lambda m=menu: _show_status(m))
+
+
+def _decorate_own_menu():
+    try:
+        _decorate_menus(Gui.getMainWindow().menuBar())
+        show_account()
+    except Exception as e:
+        App.Console.PrintError("EasyPDM: %s\n" % e)
 
 
 def _sync_menu(*_):
@@ -673,13 +686,50 @@ def _sync_menu_and_buttons(*_):
 _menu_watch = None
 
 
+def _on_workbench_activated(*_):
+    QtCore.QTimer.singleShot(0, _safe_sync)
+
+
 def install_menu():
+    """At start-up: hooks into FreeCAD's menu bar only when the user turned the menu in every
+    workbench on. Off (the default), the add-on stays inside its own workbench and touches
+    nothing of FreeCAD's interface, as the Addon Index asks."""
+    if menu_everywhere():
+        _hook_menu_bar()
+
+
+def _hook_menu_bar():
     global _menu_watch
+    if _menu_watch is not None:
+        return
     mw = Gui.getMainWindow()
-    mw.workbenchActivated.connect(lambda *_: QtCore.QTimer.singleShot(0, _safe_sync))
+    mw.workbenchActivated.connect(_on_workbench_activated)
     _menu_watch = _MenuBarWatch(mw.menuBar())
     mw.menuBar().installEventFilter(_menu_watch)
     QtCore.QTimer.singleShot(0, _safe_sync)
+
+
+def _unhook_menu_bar():
+    global _menu_watch
+    if _menu_watch is None:
+        return
+    mw = Gui.getMainWindow()
+    try:
+        mw.workbenchActivated.disconnect(_on_workbench_activated)
+    except (RuntimeError, TypeError):
+        pass
+    mw.menuBar().removeEventFilter(_menu_watch)
+    _menu_watch.deleteLater()
+    _menu_watch = None
+
+
+def apply_menu_everywhere():
+    """After the option changed: hooks in and shows the menu, or takes both away again."""
+    if menu_everywhere():
+        _hook_menu_bar()
+    else:
+        _unhook_menu_bar()
+    _safe_sync()
 
 
 class EasyPDMWorkbench(Gui.Workbench):
@@ -697,6 +747,11 @@ class EasyPDMWorkbench(Gui.Workbench):
             menu.append(name)
         self.appendToolbar("EasyPDM", _TOOLBAR)
         self.appendMenu("EasyPDM", menu + ["Separator", "EasyPDM_MenuEverywhere"])
+
+    def Activated(self):
+        # Once FreeCAD has built this workbench's menu: who is signed in at its top, and the
+        # account button brought to the current login (FreeCAD made it with the registration text).
+        QtCore.QTimer.singleShot(0, _decorate_own_menu)
 
     def GetClassName(self):
         return "Gui::PythonWorkbench"

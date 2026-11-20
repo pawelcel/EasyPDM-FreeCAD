@@ -164,7 +164,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import uuid
@@ -172,15 +171,10 @@ import webbrowser
 from urllib import error, request
 from urllib.parse import quote, urlencode
 import FreeCAD as App
-try:
-    from PySide6 import QtCore, QtWidgets
-except ImportError:
-    try:
-        from PySide2 import QtCore, QtWidgets
-    except ImportError:
-        from PySide import QtCore
-        from PySide import QtGui as QtWidgets  # bardzo stare FreeCAD (Qt4)
+# FreeCAD's own Qt wrapper (Ext/PySide), as the Addon Index asks: it maps to PySide6 or PySide2.
+from PySide import QtCore, QtWidgets
 
+from . import net
 from .common import (  # noqa: F401
     _auth_headers,
     _focus_browser_window,
@@ -296,7 +290,7 @@ def api_upload_file(path, file_path, field_name="file", override_filename=None, 
     headers.update(_auth_headers())
     req = request.Request(get_base_url() + path, data=payload, method="POST", headers=headers)
     try:
-        with request.urlopen(req, timeout=60) as resp:
+        with net.urlopen(req, timeout=60) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else None
     except error.HTTPError as e:
@@ -310,7 +304,7 @@ def api_patch_json(path, payload):
     headers.update(_auth_headers())
     req = request.Request(get_base_url() + path, data=data, method="PATCH", headers=headers)
     try:
-        with request.urlopen(req, timeout=15) as resp:
+        with net.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else None
     except error.HTTPError as e:
@@ -321,7 +315,7 @@ def api_patch_json(path, payload):
 def api_delete(path):
     req = request.Request(get_base_url() + path, method="DELETE", headers=_auth_headers())
     try:
-        with request.urlopen(req, timeout=15) as resp:
+        with net.urlopen(req, timeout=15) as resp:
             body = resp.read().decode("utf-8")
             return json.loads(body) if body else None
     except error.HTTPError as e:
@@ -345,7 +339,7 @@ def _progress_send(method, path, payload):
         headers = {"Content-Type": "application/json"}
         headers.update(_auth_headers())
         req = request.Request(get_base_url() + path, data=data, method=method, headers=headers)
-        with request.urlopen(req, timeout=10):
+        with net.urlopen(req, timeout=10):
             pass
     except Exception:
         pass
@@ -479,7 +473,7 @@ def publish_cad_request(ticket, name, item_type=None, material=None, document_si
         headers = {"Content-Type": "application/json"}
         headers.update(_auth_headers())
         req = request.Request(get_base_url() + "/cad-requests", data=data, method="PUT", headers=headers)
-        with request.urlopen(req, timeout=10):
+        with net.urlopen(req, timeout=10):
             pass
     except Exception as e:
         # Bez tego wpisu nie da sie odroznic "serwer odrzucil prosbe" od "nikt nie patrzyl":
@@ -522,7 +516,7 @@ def publish_cad_request(ticket, name, item_type=None, material=None, document_si
     try:
         headers = _auth_headers()
         req = request.Request(get_base_url() + f"/cad-requests?ticket={quote(ticket)}", method="DELETE", headers=headers)
-        with request.urlopen(req, timeout=10):
+        with net.urlopen(req, timeout=10):
             pass
     except Exception:
         pass
@@ -747,7 +741,8 @@ def _final_solids(doc):
             if obj.Shape.isNull() or obj.Shape.Volume <= 0:
                 continue
             result.append(obj)
-        except Exception:
+        # Audited: an object whose shape cannot be read is simply not a solid to export (added nosec B112)
+        except Exception:  # nosec B112
             continue
     return result
 
@@ -1073,7 +1068,8 @@ def _refresh_links_to(changed_doc):
                 linked = getattr(obj, "LinkedObject", None)
                 if linked is None or getattr(linked, "Document", None) is not changed_doc:
                     continue
-            except Exception:
+            # Audited: a link that cannot be read does not point at the changed document (added nosec B112)
+            except Exception:  # nosec B112
                 continue
             # Przypisanie i touch w OSOBNYCH try -- LinkedObject bywa tylko do odczytu
             # (potwierdzone dla części typów pochodnych App::Link), a wtedy samo "touch"

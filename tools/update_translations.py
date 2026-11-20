@@ -23,10 +23,13 @@ import ast
 import glob
 import os
 import shutil
-import subprocess
+# Audited: subprocess runs only lrelease on the .ts files this script wrote, no shell (added nosec B404)
+import subprocess  # nosec B404
 import sys
-from xml.etree import ElementTree as ET
-from xml.sax.saxutils import escape
+# Audited: ElementTree reads only this repository's own translations/*.ts files (added nosec B405)
+from xml.etree import ElementTree as ET  # nosec B405
+# Audited: escape() only escapes text written out; nothing is parsed with it (added nosec B406)
+from xml.sax.saxutils import escape  # nosec B406
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(ROOT, "freecad", "EasyPDM")
@@ -83,7 +86,8 @@ def sources():
 def read_ts(path):
     """{(source, comment): translation} of the finished and unfinished-but-filled entries."""
     done = {}
-    for message in ET.parse(path).getroot().iter("message"):
+    # Audited: `path` is one of this repository's translations/*.ts files (added nosec B314)
+    for message in ET.parse(path).getroot().iter("message"):  # nosec B314
         source = message.findtext("source") or ""
         comment = message.findtext("comment")
         translation = message.find("translation")
@@ -155,7 +159,8 @@ def main():
         print("lrelease not found: the .qm files were not rebuilt (install Qt's linguist tools or set LRELEASE)")
         return 0
     for path in written:
-        subprocess.run([tool, "-silent", "-nounfinished", path, "-qm", path[:-3] + ".qm"], check=True)
+        # Audited: `tool` is lrelease as found by shutil.which or LRELEASE, fixed arguments (added nosec B603)
+        subprocess.run([tool, "-silent", "-nounfinished", path, "-qm", path[:-3] + ".qm"], check=True)  # nosec B603
         print("compiled", path[:-3] + ".qm")
     return 0
 

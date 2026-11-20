@@ -45,7 +45,8 @@ import base64 as _sh_base64
 import glob as _sh_glob
 import time as _sh_time
 from datetime import datetime as _sh_datetime
-from xml.sax.saxutils import escape as _xml_escape
+# Audited: escape() only escapes text written into the SVG; nothing is parsed with it (added nosec B406)
+from xml.sax.saxutils import escape as _xml_escape  # nosec B406
 
 FREECAD_NS = "https://www.freecad.org/wiki/index.php?title=Svg_Namespace"
 SHEET_TITLE_PREFIX = "EasyPDM drawing sheet"
@@ -433,13 +434,7 @@ def _sh_qt_measure():
     """Text width from the real osifont metrics when Qt is available (inside FreeCAD's GUI),
     so wrapping matches what TechDraw draws; approx_text_width otherwise."""
     try:
-        try:
-            from PySide6 import QtGui as _QtGui
-        except ImportError:
-            try:
-                from PySide2 import QtGui as _QtGui
-            except ImportError:
-                from PySide import QtGui as _QtGui
+        from PySide import QtGui as _QtGui  # FreeCAD's Qt wrapper
         font_path = os.path.join(App.getResourceDir(), "Mod", "TechDraw", "Resources", "fonts", "osifont-lgpl3fe.ttf")
         families = []
         if os.path.exists(font_path):
@@ -847,7 +842,7 @@ End Function
 
 Function DetectFormat(ByVal w As Double, ByVal h As Double) As String
     DetectFormat = ""
-""" + "{detect}" + r"""
+{detect}
 End Function
 
 Sub EnsureFolder(ByVal path As String)
@@ -1058,7 +1053,7 @@ Sub main()
     ' Label properties first, so the linked notes show text while they are being placed.
     Dim mgr As Object
     Set mgr = swModel.Extension.CustomPropertyManager("")
-""" + "{props}" + r"""
+{props}
     SetProp mgr, "pdm_sheet_format", "EasyPDM " & fmt
 
     gH = h
@@ -1069,7 +1064,7 @@ Sub main()
     If clearFirst Then ClearSheetFormat
     swModel.SketchManager.AddToDB = True
     Select Case fmt
-""" + "{dispatch}" + r"""
+{dispatch}
     End Select
     swModel.SketchManager.AddToDB = False
     ApplyWidths gThick, THICK_MM

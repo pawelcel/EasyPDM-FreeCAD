@@ -21,6 +21,22 @@ fallback). Upload and download read and write it only through `common.get_sessio
 Linux backend with a stand-in `secret-tool` on `PATH`, not the user's real wallet (it can pop up
 an unlock window).
 
+## FreeCAD's Addon Index rules the code keeps
+
+The add-on is meant for the Addon Index (its "Qualities" page in the Addon Academy), so:
+
+- **Nothing at start-up but registering.** No network, no secret-storage read (`secure_store.get`
+  runs `secret-tool`/`security` and can make KWallet ask for its password), no hooks into FreeCAD's
+  own interface. The account button's start-up text comes from `_looks_signed_in()` (session cache,
+  else the saved display name); the real token is read on a click.
+- **The menu in every workbench is opt-in**: `install_menu()` hooks the menu bar only when it is on,
+  `apply_menu_everywhere()` hooks or unhooks when the option changes. Off, the add-on touches only
+  its own workbench.
+- **Qt through FreeCAD's wrapper**: `from PySide import QtCore, QtGui, QtWidgets`, never PySide6/2.
+- **URLs only through `net.urlopen`**, which refuses anything but http(s).
+- **Bandit clean** with `bandit.yaml` (the Addon Report's settings; CI runs it). Fix findings; an
+  audited `# nosec <ID>` with an `Audited:` comment only where the code is right as written.
+
 ## Drawing sheets are generated
 
 `tools/build_templates.py` is the single source of the EasyPDM drawing sheet. It writes the SVG
@@ -44,9 +60,12 @@ translation must keep every `{placeholder}` of its source.
 ## Testing
 
 There is no automated test of FreeCAD behaviour. Check a change in FreeCAD itself (offscreen is
-enough for most: `QT_QPA_PLATFORM=offscreen FreeCAD script.py`, but switching workbenches and
-`QApplication.processEvents()` after menu changes hang there). Never open windows on the
-user's desktop while testing.
+enough for most: `QT_QPA_PLATFORM=offscreen FreeCAD script.FCMacro`, but switching workbenches and
+`QApplication.processEvents()` hang there, as do `QTimer.singleShot` callbacks). Menu and
+workbench behaviour needs a window: open one on the user's desktop only when they agree, always on
+a throwaway profile (`XDG_DATA_HOME`/`XDG_CONFIG_HOME`/`XDG_CACHE_HOME` in a temp folder, the add-on
+symlinked into its `FreeCAD/v1-1/Mod`, a stand-in `secret-tool` first on `PATH`), with a macro that
+steps through with `processEvents()` and ends in `os._exit(0)`.
 
 ## Commits, changelog, releases
 

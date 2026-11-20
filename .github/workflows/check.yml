@@ -28,3 +28,7 @@ jobs:
         run: python3 tools/update_translations.py --check
       - name: Manifest is valid XML
         run: python3 -c "import xml.dom.minidom; xml.dom.minidom.parse('package.xml'); print('ok')"
+      - name: Bandit security scan (the Addon Report's settings)
+        run: |
+          python3 -m pip install --quiet bandit==1.9.4
+          bandit -q -c bandit.yaml -r .

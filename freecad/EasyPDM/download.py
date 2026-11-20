@@ -76,7 +76,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import sys
 import tempfile
 import zipfile
@@ -85,15 +84,10 @@ import webbrowser
 from urllib import error, request
 from urllib.parse import urlencode
 import FreeCAD as App
-try:
-    from PySide6 import QtCore, QtWidgets
-except ImportError:
-    try:
-        from PySide2 import QtCore, QtWidgets
-    except ImportError:
-        from PySide import QtCore
-        from PySide import QtGui as QtWidgets  # bardzo stare FreeCAD (Qt4)
+# FreeCAD's own Qt wrapper (Ext/PySide), as the Addon Index asks: it maps to PySide6 or PySide2.
+from PySide import QtCore, QtWidgets
 
+from . import net
 from .common import (  # noqa: F401
     _auth_headers,
     _focus_browser_window,
@@ -149,7 +143,7 @@ def _progress_send(method, path, payload):
         headers = {"Content-Type": "application/json"}
         headers.update(_auth_headers())
         req = request.Request(get_base_url() + path, data=data, method=method, headers=headers)
-        with request.urlopen(req, timeout=10):
+        with net.urlopen(req, timeout=10):
             pass
     except Exception:
         pass

@@ -17,7 +17,9 @@ import base64
 import ctypes
 import os
 import shutil
-import subprocess
+# Audited: subprocess runs only `security` and `secret-tool`, resolved to absolute paths, with
+# fixed argument lists and no shell; the token goes through stdin for secret-tool (added nosec B404)
+import subprocess  # nosec B404
 import sys
 
 import FreeCAD as App
@@ -77,25 +79,37 @@ class _Windows:
         _params().RemString(_param_key(server))
 
 
+# Audited (each run below): absolute path from _program, fixed argument lists, no shell (added nosec B603)
+def _program(name):
+    """The absolute path of a system tool, so a directory early in PATH cannot stand in for it."""
+    path = shutil.which(name)
+    if path is None:
+        raise FileNotFoundError(name)
+    return path
+
+
 # --- macOS: keychain ----------------------------------------------------------------------------
 
 class _MacKeychain:
     name = "macOS keychain"
 
     def get(self, server):
-        r = subprocess.run(["security", "find-generic-password", "-s", SERVICE, "-a", server, "-w"],
+        r = subprocess.run(  # nosec B603
+            [_program("security"), "find-generic-password", "-s", SERVICE, "-a", server, "-w"],
                            capture_output=True, text=True, timeout=_TIMEOUT)
         return r.stdout.strip() or None if r.returncode == 0 else None
 
     def set(self, server, token):
         # -w with the value on the command line is how `security` takes it; the process is
         # the user's own and lives a few milliseconds.
-        subprocess.run(["security", "add-generic-password", "-U", "-s", SERVICE, "-a", server, "-w", token],
-                       check=True, capture_output=True, timeout=_TIMEOUT)
+        subprocess.run(  # nosec B603
+            [_program("security"), "add-generic-password", "-U", "-s", SERVICE, "-a", server, "-w", token],
+            check=True, capture_output=True, timeout=_TIMEOUT)
 
     def clear(self, server):
-        subprocess.run(["security", "delete-generic-password", "-s", SERVICE, "-a", server],
-                       capture_output=True, timeout=_TIMEOUT)
+        subprocess.run(  # nosec B603
+            [_program("security"), "delete-generic-password", "-s", SERVICE, "-a", server],
+            capture_output=True, timeout=_TIMEOUT)
 
 
 # --- Linux: Secret Service through secret-tool --------------------------------------------------
@@ -104,19 +118,22 @@ class _SecretTool:
     name = "Secret Service (secret-tool)"
 
     def get(self, server):
-        r = subprocess.run(["secret-tool", "lookup", "service", SERVICE, "server", server],
+        r = subprocess.run(  # nosec B603
+            [_program("secret-tool"), "lookup", "service", SERVICE, "server", server],
                            capture_output=True, text=True, timeout=_TIMEOUT)
         return r.stdout.strip() or None if r.returncode == 0 else None
 
     def set(self, server, token):
         # The secret goes through stdin, never the command line.
-        subprocess.run(["secret-tool", "store", "--label", "EasyPDM (%s)" % server,
-                        "service", SERVICE, "server", server],
-                       input=token, text=True, check=True, capture_output=True, timeout=_TIMEOUT)
+        subprocess.run(  # nosec B603
+            [_program("secret-tool"), "store", "--label", "EasyPDM (%s)" % server,
+             "service", SERVICE, "server", server],
+            input=token, text=True, check=True, capture_output=True, timeout=_TIMEOUT)
 
     def clear(self, server):
-        subprocess.run(["secret-tool", "clear", "service", SERVICE, "server", server],
-                       capture_output=True, timeout=_TIMEOUT)
+        subprocess.run(  # nosec B603
+            [_program("secret-tool"), "clear", "service", SERVICE, "server", server],
+            capture_output=True, timeout=_TIMEOUT)
 
 
 def _backend():
@@ -143,6 +160,13 @@ def _warn_plain():
         App.Console.PrintWarning(
             "EasyPDM: no system secret storage found (secret-tool on Linux); the login token is kept "
             "in FreeCAD's parameters. It is a revocable EasyPDM token, not your password.\n")
+
+
+def peek(server):
+    """(known, token) from this session's cache only -- never runs a secret-storage backend."""
+    if server in _cache:
+        return True, _cache[server]
+    return False, None
 
 
 def get(server):

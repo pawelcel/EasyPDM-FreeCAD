@@ -1,10 +1,10 @@
-<p align="center"><img src="docs/images/easypdm-logo.svg" alt="EasyPDM logo" width="110"></p>
+<p align="center"><img src="https://raw.githubusercontent.com/pawelcel/EasyPDM-FreeCAD-Addon/main/docs/images/easypdm-logo.svg" alt="EasyPDM logo" width="110"></p>
 
 # EasyPDM for FreeCAD
 
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="136">](https://buymeacoffee.com/easypdm)
 
-[![Release](https://img.shields.io/github/v/release/pawelcel/EasyPDM-FreeCAD-Addon?label=release)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/releases/latest) [![License: MIT](https://img.shields.io/github/license/pawelcel/EasyPDM-FreeCAD-Addon)](LICENSE) [![Tests](https://img.shields.io/github/actions/workflow/status/pawelcel/EasyPDM-FreeCAD-Addon/check.yml?branch=main&label=tests)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/actions/workflows/check.yml) [![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)
+[![Release](https://img.shields.io/github/v/release/pawelcel/EasyPDM-FreeCAD-Addon?label=release)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/releases/latest) [![License: MIT](https://img.shields.io/github/license/pawelcel/EasyPDM-FreeCAD-Addon)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/LICENSE) [![Tests](https://img.shields.io/github/actions/workflow/status/pawelcel/EasyPDM-FreeCAD-Addon/check.yml?branch=main&label=tests)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/actions/workflows/check.yml) [![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)
 
 An **EasyPDM workbench** for FreeCAD: **Upload** the active document to an
 [EasyPDM](https://github.com/pawelcel/EasyPDM) server, **Download** an item with its whole
@@ -89,8 +89,8 @@ The server address and your name are kept in FreeCAD's preferences
 - **[The wiki](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/wiki)**: installing, signing in, the
   document panel, Upload and Download, with screenshots of where everything is.
 - [CAD Integrations](https://github.com/pawelcel/EasyPDM/wiki/CAD-Integrations) on the EasyPDM wiki
-- [How Upload and Download work](docs/README.md) ([polski](docs/README.pl.md),
-  [Deutsch](docs/README.de.md)): assemblies, drawings, drawing sheets, limitations
+- [How Upload and Download work](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/docs/README.md) ([polski](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/docs/README.pl.md),
+  [Deutsch](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/docs/README.de.md)): assemblies, drawings, drawing sheets, limitations
 
 FreeCAD 1.0 or newer. MIT licence.
 
@@ -104,5 +104,5 @@ FreeCAD 1.0 or newer. MIT licence.
 - The drawing sheets come from `tools/build_templates.py` (see its docstring); never edit the
   SVG templates or `freecad/EasyPDM/sheet.py` by hand.
 - A release is a `vX.Y.Z` tag matching `<version>` in `package.xml`; the workflow makes a draft
-  GitHub release with the zip. See [CLAUDE.md](CLAUDE.md) for the conventions.
+  GitHub release with the zip. See [CLAUDE.md](https://github.com/pawelcel/EasyPDM-FreeCAD-Addon/blob/main/CLAUDE.md) for the conventions.
 
