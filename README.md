@@ -2,6 +2,8 @@
 
 [<img src="https://cdn.buymeacoffee.com/buttons/v2/default-yellow.png" alt="Buy Me A Coffee" width="136">](https://buymeacoffee.com/easypdm)
 
+[![Release](https://img.shields.io/github/v/release/pawelcel/EasyPDM-FreeCAD?label=release)](https://github.com/pawelcel/EasyPDM-FreeCAD/releases/latest) [![License: MIT](https://img.shields.io/github/license/pawelcel/EasyPDM-FreeCAD)](LICENSE) [![Tests](https://img.shields.io/github/actions/workflow/status/pawelcel/EasyPDM-FreeCAD/check.yml?branch=main&label=tests)](https://github.com/pawelcel/EasyPDM-FreeCAD/actions/workflows/check.yml) [![Wiki](https://img.shields.io/badge/docs-wiki-blue)](https://github.com/pawelcel/EasyPDM-FreeCAD/wiki)
+
 An **EasyPDM workbench** for FreeCAD: **Upload** the active document to an
 [EasyPDM](https://github.com/pawelcel/EasyPDM) server, **Download** an item with its whole
 assembly, **Log in** (approved in the browser, so FreeCAD never sees your password) and
