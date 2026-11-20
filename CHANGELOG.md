@@ -6,6 +6,10 @@ the macros were released with EasyPDM itself; see the
 
 ## [Unreleased]
 
+## [0.9.1]
+
+**In short:** EasyPDM for FreeCAD now keeps to the rules of FreeCAD's Addon Index. Nothing happens at FreeCAD start-up beyond registering the workbench (no secret-storage read, so no KWallet prompt when FreeCAD opens), the menu in every workbench touches FreeCAD's menu bar only while it is turned on, and the code passes the Index's security scan. Works with EasyPDM 0.9 servers, as 0.9.0 did; update through the Addon Manager.
+
 ### Changed
 - **Nothing happens at FreeCAD start-up beyond registering the workbench.** The add-on used to read the login token from the system's secret storage as FreeCAD started (to label the Log in / Log out button), which ran `secret-tool` or `security` and could make KWallet ask for its password before anyone clicked anything; the button now starts from what is known without it, and the token is read on the first click.
 - **The menu in every workbench hooks into FreeCAD's menu bar only while it is turned on.** With the option off (the default) the add-on no longer watches the menu bar or workbench changes at all; turning it on hooks in at once, turning it off takes the menu and the hooks away again.
